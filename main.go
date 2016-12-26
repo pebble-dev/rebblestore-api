@@ -8,13 +8,7 @@ import (
 	"github.com/gorilla/handlers"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pborman/getopt"
-)
-
-var (
-	Buildstamp         string = "Unknown build timestamp"
-	Buildgithash       string = "Unknown git hash"
-	Buildhost          string = "Unknown build host"
-	Buildversionstring string = "0.0.1"
+	//rsapi "github.com/pebble-dev/rebblestore-api"
 )
 
 func main() {
@@ -22,6 +16,7 @@ func main() {
 	getopt.BoolVarLong(&version, "version", 'V', "Get the current version info")
 	getopt.Parse()
 	if version {
+		//fmt.Fprintf(os.Stderr, "Version %s\nBuild Host: %s\nBuild Date: %s\nBuild Hash: %s\n", rsapi.Buildversionstring, rsapi.Buildhost, rsapi.Buildstamp, rsapi.Buildgithash)
 		fmt.Fprintf(os.Stderr, "Version %s\nBuild Host: %s\nBuild Date: %s\nBuild Hash: %s\n", Buildversionstring, Buildhost, Buildstamp, Buildgithash)
 		return
 	}
