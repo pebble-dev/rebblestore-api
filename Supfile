@@ -5,7 +5,7 @@ version: 0.5
 env:
   PORT: 8080
   FOLDER: tmp
-  APPNAME: RebbleStore
+  APPNAME: rebblestore-api
 
 networks:
   production:
