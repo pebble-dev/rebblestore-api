@@ -4,7 +4,7 @@ If you want to contribute send us a PM.
 
 ## Requirements
 
-Backend/API layer requires `git`, `go`, `npm`, and `docprint`.
+Backend/API layer requires `git`, `go`, `npm`, and `apib2swagger`.
 
 ## Dev Environment Setup
 Pull down the project within your `$GOPATH`'s src folder ($GOPATH is an

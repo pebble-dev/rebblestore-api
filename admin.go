@@ -137,5 +137,6 @@ func AdminRebuildDBHandler(w http.ResponseWriter, r *http.Request) {
 // current git commit hash. Build information is populated during builds
 // triggered via the "make build" or "sup production deploy" commands.
 func AdminVersionHandler(w http.ResponseWriter, r *http.Request) {
+	WriteCommonHeaders(w)
 	fmt.Fprintf(w, "Version %s\nBuild Host: %s\nBuild Date: %s\nBuild Hash: %s\n", Buildversionstring, Buildhost, Buildstamp, Buildgithash)
 }

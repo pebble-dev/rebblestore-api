@@ -75,6 +75,7 @@ func RecurseFolder(w http.ResponseWriter, path string, f os.FileInfo, lvl int) {
 
 // AppsHandler lists all of the available applications from the backend DB.
 func AppsHandler(w http.ResponseWriter, r *http.Request) {
+	WriteCommonHeaders(w)
 	db, err := sql.Open("sqlite3", "./foo.db")
 	if err != nil {
 		w.WriteHeader(500)
@@ -95,4 +96,10 @@ func AppsHandler(w http.ResponseWriter, r *http.Request) {
 		err = rows.Scan(&item.Name, &item.Author)
 		fmt.Fprintf(w, "Item: %s\n Author: %s\n\n", item.Name, item.Author)
 	}
+}
+
+func WriteCommonHeaders(w http.ResponseWriter) {
+	// http://stackoverflow.com/a/24818638
+	w.Header().Add("Access-Control-Allow-Origin", "http://docs.rebble.io")
+	w.Header().Add("Access-Control-Allow-Methods", "GET,POST")
 }

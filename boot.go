@@ -56,6 +56,7 @@ type WebviewsConfig struct {
 // BootHandler is based off of [@afourney|https://github.com/afourney]'s
 // development bootstrap override.
 func BootHandler(w http.ResponseWriter, r *http.Request) {
+	WriteCommonHeaders(w)
 	// Get a store uri from the request and determine if it matches a valid URI
 	store_uri := r.URL.Query().Get("store_uri")
 	if _, err := url.Parse(store_uri); err != nil {

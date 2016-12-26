@@ -16,6 +16,10 @@ targets:
   deploy:
     - build
     - upload
+    - remove-docs
+    - upload-docs
+    - move-docs
+    - cleanup-docs
     - verify
   deploy-dev:
     - build
@@ -32,6 +36,20 @@ commands:
     upload:
     - src: ./$APPNAME
       dst: $HOME/$FOLDER
+  upload-docs:
+    desc: Upload Pebble App Store
+    upload:
+    - src: build/swagger/
+      dst: $HOME/docs/
+  remove-docs:
+    desc: Cleanup docs tmp folder
+    run: rm -rf $HOME/docs/*
+  move-docs:
+    desc: Move docs to correct folder
+    run: mv -ft $HOME/docs/ $HOME/docs/build/swagger/*
+  cleanup-docs:
+    desc: Cleanup docs tmp folder
+    run: rm -rf $HOME/docs/build/
   verify:
     desc: Verify that the latest version of pebble has been uploaded
     run: date; $HOME/$FOLDER/$APPNAME --version
