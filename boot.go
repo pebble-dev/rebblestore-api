@@ -29,7 +29,7 @@ type BootConfig struct {
 	Cohorts        json.RawMessage   `json:"cohorts"`
 	Developer      json.RawMessage   `json:"developer"`
 	Health         json.RawMessage   `json:"health"`
-	Href           json.RawMessage   `json:"href"`
+	Href           string            `json:"href"`
 	Id             json.RawMessage   `json:"id"`
 	KeenIo         json.RawMessage   `json:"keen_io"`
 	LinkedServices json.RawMessage   `json:"linked_services"`
@@ -104,6 +104,7 @@ func BootHandler(w http.ResponseWriter, r *http.Request) {
 	response.Config.Webviews["appstore/developer_apps"] = fmt.Sprintf("%s/developer/$$id$$?pebble_color=$$pebble_color$$&hardware=$$hardware$$&uid=$$user_id$$&mid=$$phone_id$$&pid=$$pebble_id$$&$$extras$$", store_uri)
 	response.Config.Webviews["appstore/watchfaces"] = fmt.Sprintf("%s/watchfaces?pebble_color=$$pebble_color$$&hardware=$$hardware$$&uid=$$user_id$$&mid=$$phone_id$$&pid=$$pebble_id$$&$$extras$$", store_uri)
 	response.Config.Webviews["appstore/watchapps"] = fmt.Sprintf("%s/watchapps?pebble_color=$$pebble_color$$&hardware=$$hardware$$&uid=$$user_id$$&mid=$$phone_id$$&pid=$$pebble_id$$&$$extras$$", store_uri)
+	response.Config.Href = r.URL.RawQuery
 	data, err = json.MarshalIndent(response, "", "\t")
 	if err != nil {
 		log.Fatal(err)
