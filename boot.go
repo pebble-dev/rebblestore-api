@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	LOCAL_BOOT_URI  string = "http://127.0.0.1:8000"
+	LOCAL_BOOT_URI  string = "http://127.0.0.1:8080"
 	PEBBLE_BOOT_URL string = "https://boot.getpebble.com/api/config/"
 	STORE_URI       string = "https://santoku.adamfourney.com"
 )
