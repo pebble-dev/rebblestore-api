@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	LOCAL_BOOT_URI  string = "https://rebbletest.cuy.cl"
+	LOCAL_BOOT_URI  string = "http://127.0.0.1:8000"
 	PEBBLE_BOOT_URL string = "https://boot.getpebble.com/api/config/"
 	STORE_URI       string = "https://santoku.adamfourney.com"
 )
@@ -90,7 +90,6 @@ func BootHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Println(request_url)
 	// Make a request to an external server then parse the request
 	req, err := http.Get(request_url)
 	if err != nil {
