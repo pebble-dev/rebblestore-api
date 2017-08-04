@@ -1,6 +1,6 @@
-## The Panic Store for pebble
-The Panic Store is a Pebble App store.
-If you want to contribute send us a PM.
+## Rebble Store for pebble Backend/API
+The Rebble Store is a Pebble Appstore replacement.
+If you want to contribute join us on the [Pebble Dev Discord server](http://discord.gg/aRUAYFN), then head to `#appstore`.
 
 ## Requirements
 
