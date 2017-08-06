@@ -26,3 +26,8 @@ should be able to do this automatically before save.
 	 project directory.
 2. Run either `make` to build everything, or `go build -v .` to just build the
 	 go executable.
+
+### Database
+1. If you haven't already, download a copy of the Pebble App Store (either as a possibly outdated [torrent](https://www.reddit.com/r/pebble/comments/5g0gmx/in_light_of_recent_news_i_archived_the_app_store/), or by crawling it yourself).
+2. Either create a link, or move your PebbleAppStore folder to `$GOPATH/src/pebble-dev/rebblestore-api/PebbleAppStore`, such that the folder `$GOPATH/src/pebble-dev/rebblestore-api/apps` exists.
+3. Start `./rebblestore-api` and access http://localhost:8080/admin/rebuild/db to rebuild the database.
