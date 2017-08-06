@@ -15,7 +15,7 @@ import (
 const (
 	LOCAL_BOOT_URI  string = "http://127.0.0.1:8080"
 	PEBBLE_BOOT_URL string = "https://boot.getpebble.com/api/config/"
-	STORE_URI       string = "https://santoku.adamfourney.com"
+	STORE_URI       string = "https://store.rebble.io"
 )
 
 // BootJSON is just a Go container object for the JSON response.
@@ -80,31 +80,31 @@ func BootHandler(w http.ResponseWriter, r *http.Request) {
 	var request_url string
 
 	// Build up the request URL
-	if mux.Vars(r)["os"] == "android" {
-		request_url = fmt.Sprintf("%sandroid/%s?%s", PEBBLE_BOOT_URL, mux.Vars(r)["path"], urlquery.Encode())
-	} else if mux.Vars(r)["os"] == "ios" {
-		request_url = fmt.Sprintf("%sios/%s?%s", PEBBLE_BOOT_URL, mux.Vars(r)["path"], urlquery.Encode())
-
+	os := mux.Vars(r)["os"]
+	if os == "android" || os == "ios" {
+		request_url = fmt.Sprintf("%s%s/%s?%s", PEBBLE_BOOT_URL, os, mux.Vars(r)["path"], urlquery.Encode())
 	} else {
 		w.Write([]byte("Invalid OS parameter"))
 		return
 	}
-
 	// Make a request to an external server then parse the request
 	req, err := http.Get(request_url)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("Could not contact api:", err)
+	}
+	if req.StatusCode < 200 || req.StatusCode > 300 {
+		log.Println("API Answered with status code", req.StatusCode, "- carrying on anyway...")
 	}
 	data, err := ioutil.ReadAll(req.Body)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("Could not read api response:", err)
 	}
 
 	// Decode the JSON data
 	response := &BootJSON{}
 	err = json.Unmarshal(data, response)
 	if err != nil {
-		log.Println(err)
+		log.Println("Could not parse api response: ", err)
 		w.Write(data)
 		return
 	}
