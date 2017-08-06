@@ -65,7 +65,7 @@ func TestApps(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if r.StatusCode != 200 && t.StatusCode != 500 {
+	if r.StatusCode != 200 && r.StatusCode != 500 {
 		t.Fatalf("expected 200 or 500 (depending on wether the database has been built or not), got %v", r.StatusCode)
 	}
 }
