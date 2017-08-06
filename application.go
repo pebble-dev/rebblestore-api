@@ -50,7 +50,9 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("404 Not Found<br />Try <a href='/'>Home</a>?"))
 		return
 	}
-	fmt.Fprintf(w, "<a href='/apps'>Apps</a>")
+	fmt.Fprintf(w, "<a href='/admin/version'>Version</a><br />")
+	fmt.Fprintf(w, "<a href='/admin/rebuild/db'>Rebuild the database</a><br />")
+	fmt.Fprintf(w, "<a href='/dev/apps'>Apps</a><br />")
 }
 
 func RecurseFolder(w http.ResponseWriter, path string, f os.FileInfo, lvl int) {
