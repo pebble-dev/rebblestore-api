@@ -128,7 +128,8 @@ func AdminRebuildDBHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	tx.Commit()
 
-	/**/
+	log.Print("AppStore Database rebuilt successfully.")
+
 }
 
 // AdminVersionHandler returns the latest build information from the host
