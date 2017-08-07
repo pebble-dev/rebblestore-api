@@ -1,12 +1,14 @@
 package main
 
 import (
+	"database/sql"
 	"os"
 	"testing"
 
 	"github.com/adams-sarah/test2doc/test"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 var server *test.Server
@@ -14,7 +16,14 @@ var server *test.Server
 func TestMain(m *testing.M) {
 	var err error
 
-	var r = Handlers()
+	db, err := sql.Open("sqlite3", "./foo_test.db")
+	if err != nil {
+		panic("Could not connect to database" + err.Error())
+	}
+
+	context := &handlerContext{db}
+
+	var r = Handlers(context)
 	r.KeepContext = true
 	loggedRouter := handlers.LoggingHandler(os.Stdout, r)
 	test.RegisterURLVarExtractor(mux.Vars)
