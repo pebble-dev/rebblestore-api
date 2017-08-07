@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/gorilla/handlers"
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/pborman/getopt"
 	//rsapi "github.com/pebble-dev/rebblestore-api"
 )

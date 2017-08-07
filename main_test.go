@@ -8,6 +8,7 @@ import (
 	"github.com/adams-sarah/test2doc/test"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 var server *test.Server
