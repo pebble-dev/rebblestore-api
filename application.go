@@ -45,14 +45,12 @@ func parseApp(path string) *PebbleApplication {
 
 // HomeHandler is the index page.
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" {
-		w.WriteHeader(404)
-		w.Write([]byte("404 Not Found<br />Try <a href='/'>Home</a>?"))
-		return
+	data, err := ioutil.ReadFile("static/home.html")
+	if err != nil {
+		log.Fatal("Could not read static/home.html")
 	}
-	fmt.Fprintf(w, "<a href='/admin/version'>Version</a><br />")
-	fmt.Fprintf(w, "<a href='/admin/rebuild/db'>Rebuild the database</a><br />")
-	fmt.Fprintf(w, "<a href='/dev/apps'>Apps</a><br />")
+
+	fmt.Fprintf(w, string(data))
 }
 
 func RecurseFolder(w http.ResponseWriter, path string, f os.FileInfo, lvl int) {
