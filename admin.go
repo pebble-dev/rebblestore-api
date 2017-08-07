@@ -86,20 +86,40 @@ func AdminRebuildDBHandler(w http.ResponseWriter, r *http.Request) {
 
 	//return /*
 	//db.Close()
-	os.Remove("./foo.db")
-	db, err := sql.Open("sqlite3", "./foo.db")
+	os.Remove("./RebbleAppStore.db")
+	db, err := sql.Open("sqlite3", "./RebbleAppStore.db")
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	sqlStmt := `
-			create table foo (
-				id integer not null primary key,
+			create table apps (
+				id text not null primary key,
 				name text,
-				author text,
+				author_id integer,
 				category text,
-				published_date integer
+				description text,
+				published_date integer,
+				pbw_url text,
+				rebble_ready integer,
+				updated integer,
+				version text
 			);
-			delete from foo;
+			delete from apps;
+		`
+	_, err = db.Exec(sqlStmt)
+	if err != nil {
+		log.Printf("%q: %s\n", err, sqlStmt)
+		return
+	}
+
+	// Placeholder until we implement an actual author/developer system.
+	sqlStmt = `
+			create table authors (
+				id text not null primary key,
+				name text
+			);
+			delete from authors;
 		`
 	_, err = db.Exec(sqlStmt)
 	if err != nil {
@@ -111,21 +131,35 @@ func AdminRebuildDBHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	stmt, err := tx.Prepare("insert into foo(name, author, category, published_date) values(?, ?, ?, ?)")
+
+	stmt, err := tx.Prepare("INSERT INTO apps(id, name, author_id, category, description, published_date, pbw_url, rebble_ready, updated, version) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer stmt.Close()
 
+	authors := make(map[string]int)
+	lastId := 0
 	path, errc := walkFiles("PebbleAppStore/apps")
 	for item := range path {
 		//fmt.Fprintf(w, "File: %s<br />", item)
-		app := parseApp(item)
-		_, err = stmt.Exec(app.Name, app.Author, app.Category, app.Published.UnixNano())
+		app := parseApp(item, &authors, &lastId)
+		_, err = stmt.Exec(app.Id, app.Name, app.Author.Id, app.Category, app.Description, app.Published.UnixNano(), app.AppInfo.PbwUrl, app.AppInfo.RebbleReady, app.AppInfo.Updated.UnixNano(), app.AppInfo.Version)
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 	if err := <-errc; err != nil {
 		log.Fatal(err)
 	}
+
+	for author, id := range authors {
+		_, err = tx.Exec("INSERT INTO authors(id, name) VALUES(?, ?)", id, author)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
 	tx.Commit()
 
 	/**/

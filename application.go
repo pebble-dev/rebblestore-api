@@ -8,29 +8,64 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
+
+	"github.com/gorilla/mux"
 )
 
-// A list of PebbleApplications
+// A list of RebbleApplications
 type PebbleAppList struct {
 	Apps []*PebbleApplication `json:"data"`
 }
 
-// PebbleApplication contains Pebble App information from the DB
-type PebbleApplication struct {
-	Author    string   `json:"author"`
-	Category  string   `json:"category_name"`
-	Name      string   `json:"title"`
-	Published JSONTime `json:"published_date"`
+// RebbleApplication contains Pebble App information from the DB
+type RebbleApplication struct {
+	Id          string        `json:"id"`
+	Name        string        `json:"title"`
+	Author      RebbleAuthor  `json:"author"`
+	Category    string        `json:"category_name"`
+	Description string        `json:"description"`
+	Published   JSONTime      `json:"published_date"`
+	AppInfo     RebbleAppInfo `json:"appInfo"`
 }
 
-func parseApp(path string) *PebbleApplication {
-	//log.Println(path)
+type RebbleAppInfo struct {
+	PbwUrl      string   `json:"pbwUrl"`
+	RebbleReady bool     `json:"rebbleReady"`
+	Updated     JSONTime `json:"updated"`
+	Version     string   `json:"version"`
+}
+
+type RebbleAuthor struct {
+	Id   int    `json:"id"`
+	Name string `json:"name"`
+}
+
+// PebbleApplication is used by the parseApp() function. It matches directly the `{id}.json` format.
+type PebbleApplication struct {
+	Id          string                   `json:"id"`
+	Name        string                   `json:"title"`
+	Author      string                   `json:"author"`
+	Category    string                   `json:"category_name"`
+	Description string                   `json:"description"`
+	Published   JSONTime                 `json:"published_date"`
+	Release     PebbleApplicationRelease `json:"latest_release"`
+}
+
+type PebbleApplicationRelease struct {
+	Id        string   `json:"id"`
+	PbwUrl    string   `json:"pbw_file"`
+	Published JSONTime `json:"published_date"`
+	Version   string   `json:"version"`
+}
+
+func parseApp(path string, authors *map[string]int, lastId *int) *RebbleApplication {
 	f, err := ioutil.ReadFile(path)
 	if err != nil {
 		log.Fatal(err)
 	}
 	var data = PebbleAppList{}
-	//log.Println(string(f))
+
 	err = json.Unmarshal(f, &data)
 	if err != nil {
 		log.Fatal(err)
@@ -40,7 +75,26 @@ func parseApp(path string) *PebbleApplication {
 		//log.Println(data.Data)
 		panic("Data is not the size of 1")
 	}
-	return data.Apps[0]
+
+	// Create author if it doesn't exist
+	if _, ok := (*authors)[data.Apps[0].Author]; !ok {
+		(*authors)[data.Apps[0].Author] = *lastId + 1
+		*lastId = *lastId + 1
+	}
+
+	app := RebbleApplication{}
+	app.Id = data.Apps[0].Id
+	app.Name = data.Apps[0].Name
+	app.Category = data.Apps[0].Category
+	app.Published = data.Apps[0].Published
+	app.Description = data.Apps[0].Description
+	app.Author = RebbleAuthor{(*authors)[data.Apps[0].Author], data.Apps[0].Author}
+	app.AppInfo.PbwUrl = data.Apps[0].Release.PbwUrl
+	app.AppInfo.RebbleReady = false
+	app.AppInfo.Updated = data.Apps[0].Release.Published
+	app.AppInfo.Version = data.Apps[0].Release.Version
+
+	return &app
 }
 
 // HomeHandler is the index page.
@@ -76,7 +130,7 @@ func RecurseFolder(w http.ResponseWriter, path string, f os.FileInfo, lvl int) {
 // AppsHandler lists all of the available applications from the backend DB.
 func AppsHandler(w http.ResponseWriter, r *http.Request) {
 	WriteCommonHeaders(w)
-	db, err := sql.Open("sqlite3", "./foo.db")
+	db, err := sql.Open("sqlite3", "./RebbleAppStore.db")
 	if err != nil {
 		w.WriteHeader(500)
 		w.Write([]byte("Unable to connect to DB"))
@@ -84,7 +138,12 @@ func AppsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer db.Close()
-	rows, err := db.Query("SELECT name, author from foo ORDER BY published_date ASC LIMIT 20")
+	rows, err := db.Query(`
+			SELECT apps.name, authors.name
+			FROM apps
+			JOIN authors ON apps.author_id = authors.id
+			ORDER BY published_date ASC LIMIT 20
+	`)
 	if err != nil {
 		w.WriteHeader(500)
 		w.Write([]byte("Unable to connect to DB"))
@@ -92,10 +151,45 @@ func AppsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for rows.Next() {
-		item := PebbleApplication{}
-		err = rows.Scan(&item.Name, &item.Author)
-		fmt.Fprintf(w, "Item: %s\n Author: %s\n\n", item.Name, item.Author)
+		item := RebbleApplication{}
+		err = rows.Scan(&item.Name, &item.Author.Name)
+		fmt.Fprintf(w, "Item: %s\n Author: %s\n\n", item.Name, item.Author.Name)
 	}
+}
+
+// AppHandler returns a particular application from the backend DB as JSON
+func AppHandler(w http.ResponseWriter, r *http.Request) {
+	WriteCommonHeaders(w)
+	db, err := sql.Open("sqlite3", "./RebbleAppStore.db")
+	if err != nil {
+		w.WriteHeader(500)
+		w.Write([]byte("Unable to connect to db"))
+		log.Println(err)
+		return
+	}
+	defer db.Close()
+	rows, err := db.Query("SELECT apps.id, apps.name, apps.author_id, authors.name, apps.category, apps.description, apps.published_date, apps.pbw_url, apps.rebble_ready, apps.updated, apps.version FROM apps JOIN authors ON apps.author_id = authors.id WHERE apps.id=?", mux.Vars(r)["id"])
+	if err != nil {
+		log.Fatal(err)
+	}
+	rows.Next()
+	app := RebbleApplication{}
+	var t_published, t_updated int64
+	err = rows.Scan(&app.Id, &app.Name, &app.Author.Id, &app.Author.Name, &app.Category, &app.Description, &t_published, &app.AppInfo.PbwUrl, &app.AppInfo.RebbleReady, &t_updated, &app.AppInfo.Version)
+	if err != nil {
+		log.Fatal(err)
+	}
+	app.Published.Time = time.Unix(0, t_published)
+	app.AppInfo.Updated.Time = time.Unix(0, t_updated)
+
+	data, err := json.MarshalIndent(app, "", "\t")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Send the JSON object back to the user
+	w.Header().Add("content-type", "application/json")
+	w.Write(data)
 }
 
 func WriteCommonHeaders(w http.ResponseWriter) {

@@ -20,6 +20,7 @@ func Handlers() *mux.Router {
 	r := mux.NewRouter()
 	r.HandleFunc("/", HomeHandler).Methods("GET")
 	r.HandleFunc("/dev/apps", AppsHandler).Methods("GET")
+	r.HandleFunc("/dev/apps/id/{id}", AppHandler).Methods("GET")
 	r.HandleFunc("/admin/rebuild/db", AdminRebuildDBHandler).Host("localhost")
 	r.HandleFunc("/admin/version", AdminVersionHandler)
 	//r.HandleFunc("/boot/{path:.*}", BootHandler).Methods("GET")
