@@ -1,6 +1,6 @@
-## The Panic Store for pebble
-The Panic Store is a Pebble App store.
-If you want to contribute send us a PM.
+## Rebble Store for pebble Backend/API
+The Rebble Store is a Pebble Appstore replacement.
+If you want to contribute join us on the [Pebble Dev Discord server](http://discord.gg/aRUAYFN), then head to `#appstore`.
 
 ## Requirements
 
@@ -13,7 +13,7 @@ done by running (for example) the following set of commands:
 
 		GOPATH=go/
     mkdir -p $GOPATH/src/pebble-dev
-		git clone https://github.com/pebble-dev/rebblestore-api.git --branch dev/Backend $GOPATH/src/pebble-dev/rebblestore-api
+		git clone https://github.com/pebble-dev/rebblestore-api.git $GOPATH/src/pebble-dev/rebblestore-api
 
 Please [go fmt your code](https://blog.golang.org/go-fmt-your-code) and run `go
 test` before committing your changes. Some editor plugins (such as vim-go)

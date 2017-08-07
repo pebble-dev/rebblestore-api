@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"net/http"
 	"os"
@@ -20,7 +21,16 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Version %s\nBuild Host: %s\nBuild Date: %s\nBuild Hash: %s\n", Buildversionstring, Buildhost, Buildstamp, Buildgithash)
 		return
 	}
-	r := Handlers()
+
+	db, err := sql.Open("sqlite3", "./foo.db")
+	if err != nil {
+		panic("Could not connect to database" + err.Error())
+	}
+
+	// construct the context that will be injected in to handlers
+	context := &handlerContext{db}
+
+	r := Handlers(context)
 	loggedRouter := handlers.LoggingHandler(os.Stdout, r)
 	http.Handle("/", r)
 	http.ListenAndServe(":8080", loggedRouter)

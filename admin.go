@@ -70,7 +70,7 @@ func (self *JSONTime) UnmarshalJSON(b []byte) (err error) {
 
 // AdminRebuildDBHandler allows an administrator to rebuild the database from
 // the application directory after hitting a single API end point.
-func AdminRebuildDBHandler(w http.ResponseWriter, r *http.Request) {
+func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.Request) (int, error) {
 	//w.WriteHeader(418)
 	//fmt.Fprintf(w, "I'm a teapot!")
 	/*
@@ -109,8 +109,7 @@ func AdminRebuildDBHandler(w http.ResponseWriter, r *http.Request) {
 		`
 	_, err = db.Exec(sqlStmt)
 	if err != nil {
-		log.Printf("%q: %s\n", err, sqlStmt)
-		return
+		log.Fatal("%q: %s\n", err, sqlStmt)
 	}
 
 	// Placeholder until we implement an actual author/developer system.
@@ -123,8 +122,7 @@ func AdminRebuildDBHandler(w http.ResponseWriter, r *http.Request) {
 		`
 	_, err = db.Exec(sqlStmt)
 	if err != nil {
-		log.Printf("%q: %s\n", err, sqlStmt)
-		return
+		return 500, fmt.Errorf("%q: %s", err, sqlStmt)
 	}
 
 	tx, err := db.Begin()
@@ -162,7 +160,9 @@ func AdminRebuildDBHandler(w http.ResponseWriter, r *http.Request) {
 
 	tx.Commit()
 
-	/**/
+	log.Print("AppStore Database rebuilt successfully.")
+	return 200, nil
+
 }
 
 // AdminVersionHandler returns the latest build information from the host
