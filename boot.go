@@ -7,13 +7,15 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/gorilla/mux"
 )
 
 const (
+	LOCAL_BOOT_URI  string = "http://127.0.0.1:8080"
 	PEBBLE_BOOT_URL string = "https://boot.getpebble.com/api/config/"
-	STORE_URI       string = "https://santoku.adamfourney.com"
+	STORE_URI       string = "https://store.rebble.io"
 )
 
 // BootJSON is just a Go container object for the JSON response.
@@ -29,8 +31,8 @@ type BootConfig struct {
 	Cohorts        json.RawMessage   `json:"cohorts"`
 	Developer      json.RawMessage   `json:"developer"`
 	Health         json.RawMessage   `json:"health"`
-	Href           json.RawMessage   `json:"href"`
-	Id             json.RawMessage   `json:"id"`
+	Href           string            `json:"href"`
+	Id             string            `json:"id"`
 	KeenIo         json.RawMessage   `json:"keen_io"`
 	LinkedServices json.RawMessage   `json:"linked_services"`
 	Links          json.RawMessage   `json:"links"`
@@ -61,7 +63,7 @@ func BootHandler(w http.ResponseWriter, r *http.Request) {
 	store_uri := r.URL.Query().Get("store_uri")
 	if _, err := url.Parse(store_uri); err != nil {
 		w.WriteHeader(400)
-		w.Write([]byte("Invalid store_uri parameter"))
+		w.Write([]byte("Invalid store_uri query"))
 		return
 	}
 
@@ -75,24 +77,34 @@ func BootHandler(w http.ResponseWriter, r *http.Request) {
 		urlquery.Del("store_uri")
 	}
 
-	// Build up the request URL
-	request_url := fmt.Sprintf("%s%s?%s", PEBBLE_BOOT_URL, mux.Vars(r)["path"], urlquery.Encode())
+	var request_url string
 
+	// Build up the request URL
+	os := mux.Vars(r)["os"]
+	if os == "android" || os == "ios" {
+		request_url = fmt.Sprintf("%s%s/%s?%s", PEBBLE_BOOT_URL, os, mux.Vars(r)["path"], urlquery.Encode())
+	} else {
+		w.Write([]byte("Invalid OS parameter"))
+		return
+	}
 	// Make a request to an external server then parse the request
 	req, err := http.Get(request_url)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("Could not contact api:", err)
+	}
+	if req.StatusCode < 200 || req.StatusCode > 299 {
+		log.Println("API Answered with status code", req.StatusCode, "- carrying on anyway...")
 	}
 	data, err := ioutil.ReadAll(req.Body)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("Could not read api response:", err)
 	}
 
 	// Decode the JSON data
 	response := &BootJSON{}
 	err = json.Unmarshal(data, response)
 	if err != nil {
-		log.Println(err)
+		log.Println("Could not parse api response: ", err)
 		w.Write(data)
 		return
 	}
@@ -104,6 +116,9 @@ func BootHandler(w http.ResponseWriter, r *http.Request) {
 	response.Config.Webviews["appstore/developer_apps"] = fmt.Sprintf("%s/developer/$$id$$?pebble_color=$$pebble_color$$&hardware=$$hardware$$&uid=$$user_id$$&mid=$$phone_id$$&pid=$$pebble_id$$&$$extras$$", store_uri)
 	response.Config.Webviews["appstore/watchfaces"] = fmt.Sprintf("%s/watchfaces?pebble_color=$$pebble_color$$&hardware=$$hardware$$&uid=$$user_id$$&mid=$$phone_id$$&pid=$$pebble_id$$&$$extras$$", store_uri)
 	response.Config.Webviews["appstore/watchapps"] = fmt.Sprintf("%s/watchapps?pebble_color=$$pebble_color$$&hardware=$$hardware$$&uid=$$user_id$$&mid=$$phone_id$$&pid=$$pebble_id$$&$$extras$$", store_uri)
+	response.Config.Href = LOCAL_BOOT_URI + r.URL.Path
+	response.Config.Id = strings.Replace(r.URL.Path, "/boot/", "", -1)
+
 	data, err = json.MarshalIndent(response, "", "\t")
 	if err != nil {
 		log.Fatal(err)
