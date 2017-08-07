@@ -92,7 +92,7 @@ func BootHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Fatal("Could not contact api:", err)
 	}
-	if req.StatusCode < 200 || req.StatusCode > 300 {
+	if req.StatusCode < 200 || req.StatusCode > 299 {
 		log.Println("API Answered with status code", req.StatusCode, "- carrying on anyway...")
 	}
 	data, err := ioutil.ReadAll(req.Body)
