@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -92,18 +93,25 @@ func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.R
 		log.Fatal(err)
 	}
 
+	// tag_ids and screenshot_urls are Marshaled arrays, hence the BLOB type.
 	sqlStmt := `
 			create table apps (
 				id text not null primary key,
 				name text,
 				author_id integer,
-				category text,
+				tag_ids blob,
 				description text,
 				published_date integer,
 				pbw_url text,
 				rebble_ready integer,
 				updated integer,
-				version text
+				version text,
+				support_url text,
+				author_url text,
+				source_url text,
+				screenshot_urls blob,
+				banner_url text,
+				icon_url text
 			);
 			delete from apps;
 		`
@@ -125,24 +133,52 @@ func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.R
 		return 500, fmt.Errorf("%q: %s", err, sqlStmt)
 	}
 
+	// Placeholder until we implement an actual collections system.
+	sqlStmt = `
+			create table categories (
+				id text not null primary key,
+				name text,
+				color text
+			);
+			delete from categories;
+		`
+	_, err = db.Exec(sqlStmt)
+	if err != nil {
+		return 500, fmt.Errorf("%q: %s", err, sqlStmt)
+	}
+
 	tx, err := db.Begin()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	stmt, err := tx.Prepare("INSERT INTO apps(id, name, author_id, category, description, published_date, pbw_url, rebble_ready, updated, version) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+	stmt, err := tx.Prepare("INSERT INTO apps(id, name, author_id, tag_ids, description, published_date, pbw_url, rebble_ready, updated, version, support_url, author_url, source_url, screenshot_urls, banner_url, icon_url) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer stmt.Close()
 
 	authors := make(map[string]int)
-	lastId := 0
+	categoriesNames := make(map[string]string)
+	categoriesColors := make(map[string]string)
+	lastAuthorId := 0
 	path, errc := walkFiles("PebbleAppStore/apps")
 	for item := range path {
 		//fmt.Fprintf(w, "File: %s<br />", item)
-		app := parseApp(item, &authors, &lastId)
-		_, err = stmt.Exec(app.Id, app.Name, app.Author.Id, app.Category, app.Description, app.Published.UnixNano(), app.AppInfo.PbwUrl, app.AppInfo.RebbleReady, app.AppInfo.Updated.UnixNano(), app.AppInfo.Version)
+		app := parseApp(item, &authors, &lastAuthorId, &categoriesNames, &categoriesColors)
+
+		tag_ids_s := make([]string, 1)
+		tag_ids_s[0] = app.AppInfo.Tags[0].Id
+		tag_ids, err := json.Marshal(tag_ids_s)
+		if err != nil {
+			log.Fatal("Could not marshal app tags:", err)
+		}
+		screenshot_urls, err := json.Marshal(app.Assets.Screenshots)
+		if err != nil {
+			log.Fatal("Could not marshal app screenshots:", err)
+		}
+
+		_, err = stmt.Exec(app.Id, app.Name, app.Author.Id, tag_ids, app.Description, app.Published.UnixNano(), app.AppInfo.PbwUrl, app.AppInfo.RebbleReady, app.AppInfo.Updated.UnixNano(), app.AppInfo.Version, app.AppInfo.SupportUrl, app.AppInfo.AuthorUrl, app.AppInfo.SourceUrl, screenshot_urls, app.Assets.Banner, app.Assets.Icon)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -153,6 +189,13 @@ func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.R
 
 	for author, id := range authors {
 		_, err = tx.Exec("INSERT INTO authors(id, name) VALUES(?, ?)", id, author)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	for id, category := range categoriesNames {
+		_, err = tx.Exec("INSERT INTO categories(id, name, color) VALUES(?, ?, ?)", id, category, categoriesColors[id])
 		if err != nil {
 			log.Fatal(err)
 		}
