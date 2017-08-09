@@ -13,25 +13,27 @@ import (
 	"github.com/gorilla/mux"
 )
 
-// A list of RebbleApplications
+// PebbleAppList contains a list of PebbleApplication. It matches the format of Pebble API answers.
 type PebbleAppList struct {
 	Apps []*PebbleApplication `json:"data"`
 }
 
 // RebbleApplication contains Pebble App information from the DB
 type RebbleApplication struct {
-	Id             string        `json:"id"`
-	Name           string        `json:"title"`
-	Author         RebbleAuthor  `json:"author"`
-	Description    string        `json:"description"`
-	ThumbsUp       int           `json:"thumbs_up"`
-	Type           string        `json:"type"`
-	Published      JSONTime      `json:"published_date"`
-	AppInfo        RebbleAppInfo `json:"appInfo"`
-	Assets         RebbleAssets  `json:"assets"`
-	DoomsdayBackup bool          `json:"doomsday_backup"`
+	Id                 string        `json:"id"`
+	Name               string        `json:"title"`
+	Author             RebbleAuthor  `json:"author"`
+	Description        string        `json:"description"`
+	ThumbsUp           int           `json:"thumbs_up"`
+	Type               string        `json:"type"`
+	SupportedPlatforms []string      `json:"supported_platforms"`
+	Published          JSONTime      `json:"published_date"`
+	AppInfo            RebbleAppInfo `json:"appInfo"`
+	Assets             RebbleAssets  `json:"assets"`
+	DoomsdayBackup     bool          `json:"doomsday_backup"`
 }
 
+// RebbleAppInfo contains information about the app (pbw url, versioning, links, etc.)
 type RebbleAppInfo struct {
 	PbwUrl      string           `json:"pbwUrl"`
 	RebbleReady bool             `json:"rebbleReady"`
@@ -43,17 +45,26 @@ type RebbleAppInfo struct {
 	SourceUrl   string           `json:"sourceUrl"`
 }
 
+// RebbleAuthor describes the autor of a Rebble app (ID and name)
 type RebbleAuthor struct {
 	Id   int    `json:"id"`
 	Name string `json:"name"`
 }
 
+// RebbleAssets describes the list of assets of a Rebble app (banner, icon, screenshots)
 type RebbleAssets struct {
-	Banner      string   `json:"appBanner"`
-	Icon        string   `json:"appIcon"`
+	Banner      string                         `json:"appBanner"`
+	Icon        string                         `json:"appIcon"`
+	Screenshots *([]RebbleScreenshotsPlatform) `json:"screenshots"`
+}
+
+// RebbleScreenshotsPlatform contains a list of screenshots specific to some hardware (since each Pebble watch renders UI differently)
+type RebbleScreenshotsPlatform struct {
+	Platform    string   `json:"platform"`
 	Screenshots []string `json:"screenshots"`
 }
 
+// RebbleCategory describes the category (collection) of a Rebble application
 type RebbleCategory struct {
 	Id    string `json:"id"`
 	Name  string `json:"name"`
@@ -62,23 +73,26 @@ type RebbleCategory struct {
 
 // PebbleApplication is used by the parseApp() function. It matches directly the `{id}.json` format.
 type PebbleApplication struct {
-	Id            string                   `json:"id"`
-	Name          string                   `json:"title"`
-	Author        string                   `json:"author"`
-	CategoryId    string                   `json:"category_id"`
-	CategoryName  string                   `json:"category_name"`
-	CategoryColor string                   `json:"category_color"`
-	Description   string                   `json:"description"`
-	Published     JSONTime                 `json:"published_date"`
-	Release       PebbleApplicationRelease `json:"latest_release"`
-	Website       string                   `json:"website"`
-	Source        string                   `json:"source"`
-	Screenshots   PebbleScreenshotImages   `json:"screenshot_images"`
-	HeaderImages  PebbleHeaderImages       `json:"header_images"`
-	Hearts        int                      `json:"hearts"`
-	Type          string                   `json:"type"`
+	Id                 string                   `json:"id"`
+	Name               string                   `json:"title"`
+	Author             string                   `json:"author"`
+	CategoryId         string                   `json:"category_id"`
+	CategoryName       string                   `json:"category_name"`
+	CategoryColor      string                   `json:"category_color"`
+	Description        string                   `json:"description"`
+	Published          JSONTime                 `json:"published_date"`
+	Release            PebbleApplicationRelease `json:"latest_release"`
+	Website            string                   `json:"website"`
+	Source             string                   `json:"source"`
+	Screenshots        PebbleScreenshotImages   `json:"screenshot_images"`
+	ScreenshotHardware string                   `json:"screenshot_hardware"`
+	HeaderImages       PebbleHeaderImages       `json:"header_images"`
+	Hearts             int                      `json:"hearts"`
+	Type               string                   `json:"type"`
+	Compatibility      PebbleCompatibility      `json:"compatibility"`
 }
 
+// PebbleApplicationRelease describes the `release` tag of a pebble JSON
 type PebbleApplicationRelease struct {
 	Id        string   `json:"id"`
 	PbwUrl    string   `json:"pbw_file"`
@@ -86,20 +100,37 @@ type PebbleApplicationRelease struct {
 	Version   string   `json:"version"`
 }
 
-/*
- * Screenshots and Header images are stored as arrays in the json files. But when there is no screenshot or header, the array is just an empty string, which is fine with dynamically typed languages. However, with Go, we have to redefine UnmarshalJSON for those types.
- */
+// PebbleCompatibility describes the `compatibility` tag of a pebble JSON
+type PebbleCompatibility struct {
+	Ios     PebbleCompatibilityBool `json:"ios"`
+	Android PebbleCompatibilityBool `json:"android"`
+	Aplite  PebbleCompatibilityBool `json:"aplite"`
+	Basalt  PebbleCompatibilityBool `json:"basalt"`
+	Chalk   PebbleCompatibilityBool `json:"chalk"`
+	Diorite PebbleCompatibilityBool `json:"diorite"`
+	Emery   PebbleCompatibilityBool `json:"emery"`
+}
+
+// PebbleCompatibilityBool describes the contents of a `compatibility` tag of a pebble JSON
+type PebbleCompatibilityBool struct {
+	Supported bool `json:"supported"`
+}
+
+// PebbleHeaderImages is a generic type to allow mixed contents (empty string or array of header images)
 type PebbleHeaderImages []PebbleHeaderImage
+
+// PebbleScreenshotImages is a generic type to allow mixed contents (empty string or array of screenshots)
 type PebbleScreenshotImages []PebbleScreenshotImage
 
+// PebbleHeaderImage is used by PebbleHeaderImages to allow mixed contents
 type PebbleHeaderImage struct {
 	Orig string `json:"orig"`
 }
 
-type PebbleScreenshotImage struct {
-	Screenshot string `json:"144x168"`
-}
+// PebbleScreenshotImage is used by PebbleHeaderImages to allow mixed contents
+type PebbleScreenshotImage map[string]string
 
+// UnmarshalJSON for PebbleHeaderImages allows for mixed content
 func (phi *PebbleHeaderImages) UnmarshalJSON(b []byte) error {
 	if len(b) == 0 || b[0] == '"' {
 		*phi = make([]PebbleHeaderImage, 0)
@@ -109,6 +140,7 @@ func (phi *PebbleHeaderImages) UnmarshalJSON(b []byte) error {
 	return json.Unmarshal(b, (*([]PebbleHeaderImage))(phi))
 }
 
+// UnmarshalJSON for PebbleScreenshotImages allows for mixed content
 func (psi *PebbleScreenshotImages) UnmarshalJSON(b []byte) error {
 	if len(b) == 0 || b[0] == '"' {
 		*psi = make([]PebbleScreenshotImage, 0)
@@ -149,7 +181,8 @@ func parseApp(path string, authors *map[string]int, lastAuthorId *int, categorie
 
 	app := RebbleApplication{}
 	app.AppInfo.Tags = make([]RebbleCategory, 1)
-	app.Assets.Screenshots = make([]string, 0)
+	screenshots := make(([]RebbleScreenshotsPlatform), 0)
+	app.Assets.Screenshots = &screenshots
 	app.Id = data.Apps[0].Id
 	app.Name = data.Apps[0].Name
 	app.AppInfo.Tags[0].Id = data.Apps[0].CategoryId
@@ -173,8 +206,12 @@ func parseApp(path string, authors *map[string]int, lastAuthorId *int, categorie
 		app.Assets.Banner = ""
 	}
 	app.Assets.Icon = ""
+	screenshots = append(*app.Assets.Screenshots, RebbleScreenshotsPlatform{data.Apps[0].ScreenshotHardware, make([]string, 0)})
+	app.Assets.Screenshots = &screenshots
 	for _, screenshot := range data.Apps[0].Screenshots {
-		app.Assets.Screenshots = append(app.Assets.Screenshots, screenshot.Screenshot)
+		for _, s := range screenshot {
+			(*app.Assets.Screenshots)[0].Screenshots = append((*app.Assets.Screenshots)[0].Screenshots, s)
+		}
 	}
 	app.DoomsdayBackup = false
 
@@ -268,7 +305,7 @@ func AppHandler(w http.ResponseWriter, r *http.Request) {
 	var tagIds_b []byte
 	var tagIds []string
 	var screenshots_b []byte
-	var screenshots []string
+	var screenshots *([]RebbleScreenshotsPlatform)
 	err = rows.Scan(&app.Id, &app.Name, &app.Author.Id, &app.Author.Name, &tagIds_b, &app.Description, &app.ThumbsUp, &app.Type, &t_published, &app.AppInfo.PbwUrl, &app.AppInfo.RebbleReady, &t_updated, &app.AppInfo.Version, &app.AppInfo.SupportUrl, &app.AppInfo.AuthorUrl, &app.AppInfo.SourceUrl, &screenshots_b, &app.Assets.Banner, &app.Assets.Icon, &app.DoomsdayBackup)
 	if err != nil {
 		log.Fatal(err)
@@ -278,6 +315,7 @@ func AppHandler(w http.ResponseWriter, r *http.Request) {
 	json.Unmarshal(tagIds_b, &tagIds)
 	app.AppInfo.Tags = make([]RebbleCategory, len(tagIds))
 	json.Unmarshal(screenshots_b, &screenshots)
+	app.Assets.Screenshots = screenshots
 
 	for i, tagId := range tagIds {
 		rows, err := db.Query("SELECT id, name, color FROM categories WHERE id=?", tagId)
@@ -290,11 +328,6 @@ func AppHandler(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			log.Fatal(err)
 		}
-	}
-
-	app.Assets.Screenshots = make([]string, len(screenshots))
-	for i, screenshot := range screenshots {
-		app.Assets.Screenshots[i] = screenshot
 	}
 
 	data, err := json.MarshalIndent(app, "", "\t")

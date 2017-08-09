@@ -103,6 +103,7 @@ func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.R
 				description text,
 				thumbs_up integer,
 				type text,
+				supported_platforms blob,
 				published_date integer,
 				pbw_url text,
 				rebble_ready integer,
@@ -155,7 +156,7 @@ func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.R
 		log.Fatal(err)
 	}
 
-	stmt, err := tx.Prepare("INSERT INTO apps(id, name, author_id, tag_ids, description, thumbs_up, type, published_date, pbw_url, rebble_ready, updated, version, support_url, author_url, source_url, screenshot_urls, banner_url, icon_url, doomsday_backup) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+	stmt, err := tx.Prepare("INSERT INTO apps(id, name, author_id, tag_ids, description, thumbs_up, type, supported_platforms, published_date, pbw_url, rebble_ready, updated, version, support_url, author_url, source_url, screenshot_urls, banner_url, icon_url, doomsday_backup) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -165,23 +166,35 @@ func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.R
 	categoriesNames := make(map[string]string)
 	categoriesColors := make(map[string]string)
 	lastAuthorId := 0
-	path, errc := walkFiles("PebbleAppStore/apps")
+	path, errc := walkFiles("PebbleAppStore/")
+	apps := make(map[string]RebbleApplication)
 	for item := range path {
-		//fmt.Fprintf(w, "File: %s<br />", item)
 		app := parseApp(item, &authors, &lastAuthorId, &categoriesNames, &categoriesColors)
 
+		if _, ok := apps[app.Id]; ok {
+			(*apps[app.Id].Assets.Screenshots) = append((*apps[app.Id].Assets.Screenshots), (*app.Assets.Screenshots)[0])
+		} else {
+			apps[app.Id] = *app
+		}
+	}
+
+	for _, app := range apps {
 		tag_ids_s := make([]string, 1)
 		tag_ids_s[0] = app.AppInfo.Tags[0].Id
 		tag_ids, err := json.Marshal(tag_ids_s)
 		if err != nil {
 			log.Fatal("Could not marshal app tags:", err)
 		}
-		screenshot_urls, err := json.Marshal(app.Assets.Screenshots)
+		screenshots, err := json.Marshal(app.Assets.Screenshots)
+		if err != nil {
+			log.Fatal("Could not marshal app screenshots:", err)
+		}
+		supported_platforms, err := json.Marshal(app.SupportedPlatforms)
 		if err != nil {
 			log.Fatal("Could not marshal app screenshots:", err)
 		}
 
-		_, err = stmt.Exec(app.Id, app.Name, app.Author.Id, tag_ids, app.Description, app.ThumbsUp, app.Type, app.Published.UnixNano(), app.AppInfo.PbwUrl, app.AppInfo.RebbleReady, app.AppInfo.Updated.UnixNano(), app.AppInfo.Version, app.AppInfo.SupportUrl, app.AppInfo.AuthorUrl, app.AppInfo.SourceUrl, screenshot_urls, app.Assets.Banner, app.Assets.Icon, app.DoomsdayBackup)
+		_, err = stmt.Exec(app.Id, app.Name, app.Author.Id, tag_ids, app.Description, app.ThumbsUp, app.Type, supported_platforms, app.Published.UnixNano(), app.AppInfo.PbwUrl, app.AppInfo.RebbleReady, app.AppInfo.Updated.UnixNano(), app.AppInfo.Version, app.AppInfo.SupportUrl, app.AppInfo.AuthorUrl, app.AppInfo.SourceUrl, screenshots, app.Assets.Banner, app.Assets.Icon, app.DoomsdayBackup)
 		if err != nil {
 			log.Fatal(err)
 		}
