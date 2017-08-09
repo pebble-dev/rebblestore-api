@@ -6,7 +6,7 @@ If you want to contribute join us on the [Pebble Dev Discord server](http://disc
 
 Backend/API layer requires `git`, `go`, `npm`, and `apib2swagger`.
 
-To make the backend to anything, you also need to download a copy of the Pebble App Store. You can already start downloading it [here](https://drive.google.com/file/d/0B1rumprSXUAhTjB1aU9GUFVPUW8/view) while you setup the development environment.
+To make the backend do anything, you also need to download a copy of the Pebble App Store. You can already start downloading it [here](https://drive.google.com/file/d/0B1rumprSXUAhTjB1aU9GUFVPUW8/view) while you setup the development environment.
 
 ## Dev Environment Setup
 Pull down the project within your `$GOPATH`'s src folder ($GOPATH is an environment variable and is typically set to $HOME/go/ on \*nix). This can be done by running (for example) the following set of commands:
