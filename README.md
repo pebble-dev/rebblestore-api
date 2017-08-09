@@ -12,7 +12,7 @@ environment variable and is typically set to $HOME/go/ on \*nix). This can be
 done by running (for example) the following set of commands:
 
 		GOPATH=go/
-    mkdir -p $GOPATH/src/pebble-dev
+		mkdir -p $GOPATH/src/pebble-dev
 		git clone https://github.com/pebble-dev/rebblestore-api.git $GOPATH/src/pebble-dev/rebblestore-api
 
 Please [go fmt your code](https://blog.golang.org/go-fmt-your-code) and run `go
@@ -28,6 +28,6 @@ should be able to do this automatically before save.
 	 go executable.
 
 ### Database
-1. If you haven't already, download a copy of the Pebble App Store (either as a possibly outdated [torrent](https://www.reddit.com/r/pebble/comments/5g0gmx/in_light_of_recent_news_i_archived_the_app_store/), or by crawling it yourself).
-2. Either create a link, or move your PebbleAppStore folder to `$GOPATH/src/pebble-dev/rebblestore-api/PebbleAppStore`, such that the folder `$GOPATH/src/pebble-dev/rebblestore-api/apps` exists.
+1. If you haven't already, download a copy of the Pebble App Store by using [this tool](https://github.com/azertyfun/PebbleAppStoreCrawler) (you can find a direct download on this page).
+2. Either create a link, or move your PebbleAppStore folder to `$GOPATH/src/pebble-dev/rebblestore-api/PebbleAppStore`, such that the folder `$GOPATH/src/pebble-dev/rebblestore-api/apps` exists; for example: `ln -s ~/Documents/PebbleAppStore $GOPATH/src/pebble-dev/rebblestore-api/PebbleAppStore`.
 3. Start `./rebblestore-api` and access http://localhost:8080/admin/rebuild/db to rebuild the database.
