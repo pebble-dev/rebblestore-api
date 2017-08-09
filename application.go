@@ -20,13 +20,16 @@ type PebbleAppList struct {
 
 // RebbleApplication contains Pebble App information from the DB
 type RebbleApplication struct {
-	Id          string        `json:"id"`
-	Name        string        `json:"title"`
-	Author      RebbleAuthor  `json:"author"`
-	Description string        `json:"description"`
-	Published   JSONTime      `json:"published_date"`
-	AppInfo     RebbleAppInfo `json:"appInfo"`
-	Assets      RebbleAssets  `json:"assets"`
+	Id             string        `json:"id"`
+	Name           string        `json:"title"`
+	Author         RebbleAuthor  `json:"author"`
+	Description    string        `json:"description"`
+	ThumbsUp       int           `json:"thumbs_up"`
+	Type           string        `json:"type"`
+	Published      JSONTime      `json:"published_date"`
+	AppInfo        RebbleAppInfo `json:"appInfo"`
+	Assets         RebbleAssets  `json:"assets"`
+	DoomsdayBackup bool          `json:"doomsday_backup"`
 }
 
 type RebbleAppInfo struct {
@@ -72,6 +75,8 @@ type PebbleApplication struct {
 	Source        string                   `json:"source"`
 	Screenshots   PebbleScreenshotImages   `json:"screenshot_images"`
 	HeaderImages  PebbleHeaderImages       `json:"header_images"`
+	Hearts        int                      `json:"hearts"`
+	Type          string                   `json:"type"`
 }
 
 type PebbleApplicationRelease struct {
@@ -152,6 +157,8 @@ func parseApp(path string, authors *map[string]int, lastAuthorId *int, categorie
 	app.AppInfo.Tags[0].Color = data.Apps[0].CategoryColor
 	app.Published = data.Apps[0].Published
 	app.Description = data.Apps[0].Description
+	app.ThumbsUp = data.Apps[0].Hearts
+	app.Type = data.Apps[0].Type
 	app.Author = RebbleAuthor{(*authors)[data.Apps[0].Author], data.Apps[0].Author}
 	app.AppInfo.PbwUrl = data.Apps[0].Release.PbwUrl
 	app.AppInfo.RebbleReady = false
@@ -169,6 +176,7 @@ func parseApp(path string, authors *map[string]int, lastAuthorId *int, categorie
 	for _, screenshot := range data.Apps[0].Screenshots {
 		app.Assets.Screenshots = append(app.Assets.Screenshots, screenshot.Screenshot)
 	}
+	app.DoomsdayBackup = false
 
 	return &app
 }
@@ -244,7 +252,7 @@ func AppHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer db.Close()
-	rows, err := db.Query("SELECT apps.id, apps.name, apps.author_id, authors.name, apps.tag_ids, apps.description, apps.published_date, apps.pbw_url, apps.rebble_ready, apps.updated, apps.version, apps.support_url, apps.author_url, apps.source_url, apps.screenshot_urls, apps.banner_url, apps.icon_url FROM apps JOIN authors ON apps.author_id = authors.id WHERE apps.id=?", mux.Vars(r)["id"])
+	rows, err := db.Query("SELECT apps.id, apps.name, apps.author_id, authors.name, apps.tag_ids, apps.description, apps.thumbs_up, apps.type, apps.published_date, apps.pbw_url, apps.rebble_ready, apps.updated, apps.version, apps.support_url, apps.author_url, apps.source_url, apps.screenshot_urls, apps.banner_url, apps.icon_url, apps.doomsday_backup FROM apps JOIN authors ON apps.author_id = authors.id WHERE apps.id=?", mux.Vars(r)["id"])
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -261,7 +269,7 @@ func AppHandler(w http.ResponseWriter, r *http.Request) {
 	var tagIds []string
 	var screenshots_b []byte
 	var screenshots []string
-	err = rows.Scan(&app.Id, &app.Name, &app.Author.Id, &app.Author.Name, &tagIds_b, &app.Description, &t_published, &app.AppInfo.PbwUrl, &app.AppInfo.RebbleReady, &t_updated, &app.AppInfo.Version, &app.AppInfo.SupportUrl, &app.AppInfo.AuthorUrl, &app.AppInfo.SourceUrl, &screenshots_b, &app.Assets.Banner, &app.Assets.Icon)
+	err = rows.Scan(&app.Id, &app.Name, &app.Author.Id, &app.Author.Name, &tagIds_b, &app.Description, &app.ThumbsUp, &app.Type, &t_published, &app.AppInfo.PbwUrl, &app.AppInfo.RebbleReady, &t_updated, &app.AppInfo.Version, &app.AppInfo.SupportUrl, &app.AppInfo.AuthorUrl, &app.AppInfo.SourceUrl, &screenshots_b, &app.Assets.Banner, &app.Assets.Icon, &app.DoomsdayBackup)
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -101,6 +101,8 @@ func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.R
 				author_id integer,
 				tag_ids blob,
 				description text,
+				thumbs_up integer,
+				type text,
 				published_date integer,
 				pbw_url text,
 				rebble_ready integer,
@@ -111,7 +113,8 @@ func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.R
 				source_url text,
 				screenshot_urls blob,
 				banner_url text,
-				icon_url text
+				icon_url text,
+				doomsday_backup integer
 			);
 			delete from apps;
 		`
@@ -152,7 +155,7 @@ func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.R
 		log.Fatal(err)
 	}
 
-	stmt, err := tx.Prepare("INSERT INTO apps(id, name, author_id, tag_ids, description, published_date, pbw_url, rebble_ready, updated, version, support_url, author_url, source_url, screenshot_urls, banner_url, icon_url) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+	stmt, err := tx.Prepare("INSERT INTO apps(id, name, author_id, tag_ids, description, thumbs_up, type, published_date, pbw_url, rebble_ready, updated, version, support_url, author_url, source_url, screenshot_urls, banner_url, icon_url, doomsday_backup) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -178,7 +181,7 @@ func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.R
 			log.Fatal("Could not marshal app screenshots:", err)
 		}
 
-		_, err = stmt.Exec(app.Id, app.Name, app.Author.Id, tag_ids, app.Description, app.Published.UnixNano(), app.AppInfo.PbwUrl, app.AppInfo.RebbleReady, app.AppInfo.Updated.UnixNano(), app.AppInfo.Version, app.AppInfo.SupportUrl, app.AppInfo.AuthorUrl, app.AppInfo.SourceUrl, screenshot_urls, app.Assets.Banner, app.Assets.Icon)
+		_, err = stmt.Exec(app.Id, app.Name, app.Author.Id, tag_ids, app.Description, app.ThumbsUp, app.Type, app.Published.UnixNano(), app.AppInfo.PbwUrl, app.AppInfo.RebbleReady, app.AppInfo.Updated.UnixNano(), app.AppInfo.Version, app.AppInfo.SupportUrl, app.AppInfo.AuthorUrl, app.AppInfo.SourceUrl, screenshot_urls, app.Assets.Banner, app.Assets.Icon, app.DoomsdayBackup)
 		if err != nil {
 			log.Fatal(err)
 		}
