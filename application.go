@@ -183,6 +183,30 @@ func parseApp(path string, authors *map[string]int, lastAuthorId *int, categorie
 	app.AppInfo.Tags = make([]RebbleCategory, 1)
 	screenshots := make(([]RebbleScreenshotsPlatform), 0)
 	app.Assets.Screenshots = &screenshots
+
+	supportedPlatforms := make([]string, 0)
+	if data.Apps[0].Compatibility.Ios.Supported {
+		supportedPlatforms = append(supportedPlatforms, "ios")
+	}
+	if data.Apps[0].Compatibility.Android.Supported {
+		supportedPlatforms = append(supportedPlatforms, "android")
+	}
+	if data.Apps[0].Compatibility.Aplite.Supported {
+		supportedPlatforms = append(supportedPlatforms, "aplite")
+	}
+	if data.Apps[0].Compatibility.Basalt.Supported {
+		supportedPlatforms = append(supportedPlatforms, "basalt")
+	}
+	if data.Apps[0].Compatibility.Chalk.Supported {
+		supportedPlatforms = append(supportedPlatforms, "chalk")
+	}
+	if data.Apps[0].Compatibility.Diorite.Supported {
+		supportedPlatforms = append(supportedPlatforms, "diorite")
+	}
+	if data.Apps[0].Compatibility.Emery.Supported {
+		supportedPlatforms = append(supportedPlatforms, "emery")
+	}
+
 	app.Id = data.Apps[0].Id
 	app.Name = data.Apps[0].Name
 	app.AppInfo.Tags[0].Id = data.Apps[0].CategoryId
@@ -192,6 +216,7 @@ func parseApp(path string, authors *map[string]int, lastAuthorId *int, categorie
 	app.Description = data.Apps[0].Description
 	app.ThumbsUp = data.Apps[0].Hearts
 	app.Type = data.Apps[0].Type
+	app.SupportedPlatforms = supportedPlatforms
 	app.Author = RebbleAuthor{(*authors)[data.Apps[0].Author], data.Apps[0].Author}
 	app.AppInfo.PbwUrl = data.Apps[0].Release.PbwUrl
 	app.AppInfo.RebbleReady = false
@@ -289,7 +314,7 @@ func AppHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer db.Close()
-	rows, err := db.Query("SELECT apps.id, apps.name, apps.author_id, authors.name, apps.tag_ids, apps.description, apps.thumbs_up, apps.type, apps.published_date, apps.pbw_url, apps.rebble_ready, apps.updated, apps.version, apps.support_url, apps.author_url, apps.source_url, apps.screenshot_urls, apps.banner_url, apps.icon_url, apps.doomsday_backup FROM apps JOIN authors ON apps.author_id = authors.id WHERE apps.id=?", mux.Vars(r)["id"])
+	rows, err := db.Query("SELECT apps.id, apps.name, apps.author_id, authors.name, apps.tag_ids, apps.description, apps.thumbs_up, apps.type, apps.supported_platforms, apps.published_date, apps.pbw_url, apps.rebble_ready, apps.updated, apps.version, apps.support_url, apps.author_url, apps.source_url, apps.screenshot_urls, apps.banner_url, apps.icon_url, apps.doomsday_backup FROM apps JOIN authors ON apps.author_id = authors.id WHERE apps.id=?", mux.Vars(r)["id"])
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -301,15 +326,17 @@ func AppHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	app := RebbleApplication{}
+	var supportedPlatforms_b []byte
 	var t_published, t_updated int64
 	var tagIds_b []byte
 	var tagIds []string
 	var screenshots_b []byte
 	var screenshots *([]RebbleScreenshotsPlatform)
-	err = rows.Scan(&app.Id, &app.Name, &app.Author.Id, &app.Author.Name, &tagIds_b, &app.Description, &app.ThumbsUp, &app.Type, &t_published, &app.AppInfo.PbwUrl, &app.AppInfo.RebbleReady, &t_updated, &app.AppInfo.Version, &app.AppInfo.SupportUrl, &app.AppInfo.AuthorUrl, &app.AppInfo.SourceUrl, &screenshots_b, &app.Assets.Banner, &app.Assets.Icon, &app.DoomsdayBackup)
+	err = rows.Scan(&app.Id, &app.Name, &app.Author.Id, &app.Author.Name, &tagIds_b, &app.Description, &app.ThumbsUp, &app.Type, &supportedPlatforms_b, &t_published, &app.AppInfo.PbwUrl, &app.AppInfo.RebbleReady, &t_updated, &app.AppInfo.Version, &app.AppInfo.SupportUrl, &app.AppInfo.AuthorUrl, &app.AppInfo.SourceUrl, &screenshots_b, &app.Assets.Banner, &app.Assets.Icon, &app.DoomsdayBackup)
 	if err != nil {
 		log.Fatal(err)
 	}
+	json.Unmarshal(supportedPlatforms_b, &app.SupportedPlatforms)
 	app.Published.Time = time.Unix(0, t_published)
 	app.AppInfo.Updated.Time = time.Unix(0, t_updated)
 	json.Unmarshal(tagIds_b, &tagIds)
