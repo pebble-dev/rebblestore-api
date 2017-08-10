@@ -89,18 +89,9 @@ func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.R
 
 	db := ctx.db
 
-	// remove the old apps table
-
-	sqlStmt := "drop table apps"
-
-	_, err := db.Exec(sqlStmt)
-
-	if err != nil {
-		log.Fatal("%q: %s\n", err, sqlStmt)
-	}
-
 	// tag_ids and screenshot_urls are Marshaled arrays, hence the BLOB type.
-	sqlStmt = `
+	sqlStmt := `
+			drop table apps;
 			create table apps (
 				id text not null primary key,
 				name text,
@@ -125,13 +116,14 @@ func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.R
 			);
 			delete from apps;
 		`
-	_, err = db.Exec(sqlStmt)
+	_, err := db.Exec(sqlStmt)
 	if err != nil {
 		log.Fatal("%q: %s\n", err, sqlStmt)
 	}
 
 	// Placeholder until we implement an actual author/developer system.
 	sqlStmt = `
+			drop table authors;
 			create table authors (
 				id text not null primary key,
 				name text
@@ -145,6 +137,7 @@ func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.R
 
 	// Placeholder until we implement an actual collections system.
 	sqlStmt = `
+			drop table categories;
 			create table categories (
 				id text not null primary key,
 				name text,
