@@ -133,7 +133,6 @@ type PebbleCompatibility struct {
 	Basalt  PebbleCompatibilityBool `json:"basalt"`
 	Chalk   PebbleCompatibilityBool `json:"chalk"`
 	Diorite PebbleCompatibilityBool `json:"diorite"`
-	Emery   PebbleCompatibilityBool `json:"emery"`
 }
 
 // PebbleCompatibilityBool describes the contents of a `compatibility` tag of a pebble JSON
@@ -227,9 +226,6 @@ func parseApp(path string, authors *map[string]int, lastAuthorId *int, categorie
 	}
 	if data.Apps[0].Compatibility.Diorite.Supported {
 		supportedPlatforms = append(supportedPlatforms, "diorite")
-	}
-	if data.Apps[0].Compatibility.Emery.Supported {
-		supportedPlatforms = append(supportedPlatforms, "emery")
 	}
 
 	app.Id = data.Apps[0].Id
