@@ -21,11 +21,42 @@ func insert(cards *([]RebbleCard), location int, card RebbleCard) *([]RebbleCard
 }
 
 func remove(cards *([]RebbleCard), location int) *([]RebbleCard) {
-	new := make([]RebbleCard, len(*cards)-1)
+	new := make([]RebbleCard, location)
 	copy(new, (*cards)[:location])
 	new = append(new, (*cards)[location+1:]...)
 
 	return &new
+}
+
+func bestCards(cards *([]RebbleCard), sortByPopular bool, nCards int) *([]RebbleCard) {
+	newCards := make([]RebbleCard, nCards)
+	copy(newCards, *cards)
+
+	for _, card := range *cards {
+		newCards = append(newCards, card)
+
+		if len(newCards) > nCards {
+			if sortByPopular {
+				worst := 0
+				for i, newCard := range newCards {
+					if newCard.ThumbsUp < newCards[worst].ThumbsUp {
+						worst = i
+					}
+				}
+				newCards = *(remove(&newCards, worst))
+			} else {
+				worst := 0
+				for i, newCard := range newCards {
+					if newCard.Published.UnixNano() < newCards[worst].Published.UnixNano() {
+						worst = i
+					}
+				}
+				newCards = *(remove(&newCards, worst))
+			}
+		}
+	}
+
+	return &newCards
 }
 
 func sortCards(cards *([]RebbleCard), sortByPopular bool) *([]RebbleCard) {
@@ -67,27 +98,6 @@ func sortCards(cards *([]RebbleCard), sortByPopular bool) *([]RebbleCard) {
 					newCards = *(insert(&newCards, i, card))
 					break
 				}
-			}
-		}
-
-		// We remove the worst result, because we will never use it, and if we don't remove it the for loops above will get longer and longer, leading to an exponentially longer sorting.
-		if len(newCards) > 12 {
-			if sortByPopular {
-				worst := 0
-				for i, newCard := range newCards {
-					if newCard.ThumbsUp < newCards[worst].ThumbsUp {
-						worst = i
-					}
-				}
-				newCards = *(remove(&newCards, worst))
-			} else {
-				worst := 0
-				for i, newCard := range newCards {
-					if newCard.Published.UnixNano() < newCards[worst].Published.UnixNano() {
-						worst = i
-					}
-				}
-				newCards = *(remove(&newCards, worst))
 			}
 		}
 	}
@@ -172,11 +182,8 @@ func CollectionHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	cards.Cards = *(bestCards(&cards.Cards, sortByPopular, 12))
 	cards.Cards = *(sortCards(&cards.Cards, sortByPopular))
-
-	if len(cards.Cards) > 12 {
-		cards.Cards = cards.Cards[:12]
-	}
 
 	data, err := json.MarshalIndent(cards, "", "\t")
 	if err != nil {
