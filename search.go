@@ -34,7 +34,7 @@ func SearchHandler(w http.ResponseWriter, r *http.Request) {
 	query = strings.Replace(query, "_", "!_", -1)
 	query = strings.Replace(query, "[", "![", -1)
 	query = "%" + query + "%"
-	rows, err := db.Query("SELECT id, name, type, thumbs_up FROM apps WHERE name LIKE ? ESCAPE '!' ORDER BY thumbs_up DESC LIMIT 12", query)
+	rows, err := db.Query("SELECT id, name, type, thumbs_up, icon_url FROM apps WHERE name LIKE ? ESCAPE '!' ORDER BY thumbs_up DESC LIMIT 12", query)
 	if err != nil {
 		w.WriteHeader(500)
 		w.Write([]byte("Unable to connect to DB"))
@@ -47,7 +47,7 @@ func SearchHandler(w http.ResponseWriter, r *http.Request) {
 
 	for rows.Next() {
 		card := RebbleCard{}
-		err = rows.Scan(&card.Id, &card.Title, &card.Type, &card.ThumbsUp)
+		err = rows.Scan(&card.Id, &card.Title, &card.Type, &card.ThumbsUp, &card.ImageUrl)
 		cards.Cards = append(cards.Cards, card)
 	}
 
