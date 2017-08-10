@@ -143,7 +143,10 @@ func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.R
 			create table collections (
 				id text not null primary key,
 				name text,
-				color text
+				color text,
+				apps blob,
+				cache_apps_most_popular blob,
+				cache_time integer
 			);
 			delete from collections;
 		`
@@ -164,14 +167,13 @@ func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.R
 	defer stmt.Close()
 
 	authors := make(map[string]int)
-	collectionNames := make(map[string]string)
-	collectionColors := make(map[string]string)
+	collections := make(map[string]RebbleCollection)
 	lastAuthorId := 0
 	path, errc := walkFiles("PebbleAppStore/")
 	apps := make(map[string]RebbleApplication)
 	versions := make(map[string]([]RebbleVersion))
 	for item := range path {
-		app, v := parseApp(item, &authors, &lastAuthorId, &collectionNames, &collectionColors)
+		app, v := parseApp(item, &authors, &lastAuthorId, &collections)
 
 		if _, ok := apps[app.Id]; ok {
 			(*apps[app.Id].Assets.Screenshots) = append((*apps[app.Id].Assets.Screenshots), (*app.Assets.Screenshots)[0])
@@ -217,8 +219,19 @@ func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.R
 		}
 	}
 
-	for id, collection := range collectionNames {
-		_, err = tx.Exec("INSERT INTO collections(id, name, color) VALUES(?, ?, ?)", id, collection, collectionColors[id])
+	for id, collection := range collections {
+		collectionApps := make([]string, 0)
+		for _, app := range apps {
+			for _, tag := range app.AppInfo.Tags {
+				if tag.Id == collection.Id {
+					collectionApps = append(collectionApps, app.Id)
+				}
+			}
+		}
+
+		collectionApps_b, err := json.Marshal(collectionApps)
+
+		_, err = tx.Exec("INSERT INTO collections(id, name, color, apps) VALUES(?, ?, ?, ?)", id, collection.Name, collection.Color, collectionApps_b)
 		if err != nil {
 			log.Fatal(err)
 		}

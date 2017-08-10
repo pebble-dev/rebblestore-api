@@ -174,7 +174,7 @@ func (psi *PebbleScreenshotImages) UnmarshalJSON(b []byte) error {
 	return json.Unmarshal(b, (*([]PebbleScreenshotImage))(psi))
 }
 
-func parseApp(path string, authors *map[string]int, lastAuthorId *int, collectionNames, collectionColors *map[string]string) (*RebbleApplication, *[]RebbleVersion) {
+func parseApp(path string, authors *map[string]int, lastAuthorId *int, collections *map[string]RebbleCollection) (*RebbleApplication, *[]RebbleVersion) {
 	f, err := ioutil.ReadFile(path)
 	if err != nil {
 		log.Fatal(err)
@@ -198,9 +198,12 @@ func parseApp(path string, authors *map[string]int, lastAuthorId *int, collectio
 	}
 
 	// Create collection if it doesn't exist
-	if _, ok := (*collectionNames)[data.Apps[0].CategoryId]; !ok {
-		(*collectionNames)[data.Apps[0].CategoryId] = data.Apps[0].CategoryName
-		(*collectionColors)[data.Apps[0].CategoryId] = data.Apps[0].CategoryColor
+	if _, ok := (*collections)[data.Apps[0].CategoryId]; !ok {
+		(*collections)[data.Apps[0].CategoryId] = RebbleCollection{
+			Id:    data.Apps[0].CategoryId,
+			Name:  data.Apps[0].CategoryName,
+			Color: data.Apps[0].CategoryColor,
+		}
 	}
 
 	app := RebbleApplication{}
