@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -97,18 +98,28 @@ func sortApps(apps *([]RebbleApplication), sortByPopular bool) *([]RebbleApplica
 		}
 
 		if sortByPopular {
+			added := false
 			for i, newApp := range newApps {
 				if newApp.ThumbsUp < app.ThumbsUp {
 					newApps = *(insert(&newApps, i, app))
+					added = true
 					break
 				}
 			}
+			if !added {
+				newApps = *(insert(&newApps, len(newApps), app))
+			}
 		} else {
+			added := false
 			for i, newApp := range newApps {
 				if app.Published.UnixNano() > newApp.Published.UnixNano() {
 					newApps = *(insert(&newApps, i, app))
+					added = true
 					break
 				}
+			}
+			if !added {
+				newApps = *(insert(&newApps, len(newApps), app))
 			}
 		}
 	}
@@ -166,6 +177,21 @@ func CollectionHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	page := 1
+	if o, ok := urlquery["page"]; ok {
+		if len(o) > 1 {
+			w.WriteHeader(400)
+			w.Write([]byte("Multiple pages are not allowed"))
+			return
+		} else {
+			page, err = strconv.Atoi(o[0])
+			if err != nil || page < 1 {
+				w.WriteHeader(400)
+				w.Write([]byte("Page should be a positive, non-nul integer"))
+				return
+			}
+		}
+	}
 
 	rows, err := db.Query("SELECT apps FROM collections WHERE id=?", mux.Vars(r)["id"])
 	if err != nil {
@@ -208,8 +234,11 @@ func CollectionHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	apps = *(bestApps(&apps, sortByPopular, 12, platform))
+	apps = *(bestApps(&apps, sortByPopular, page*12, platform))
 	apps = *(sortApps(&apps, sortByPopular))
+	if page != 1 {
+		apps = apps[(page-1)*12 : page*12]
+	}
 
 	var cards RebbleCards
 	for _, app := range apps {
