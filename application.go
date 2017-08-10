@@ -35,7 +35,7 @@ type RebbleApplication struct {
 
 // RebbleTagList contains a list of tag. Used by getApi(id)
 type RebbleTagList struct {
-	Tags []RebbleCategory `json:"tags"`
+	Tags []RebbleCollection `json:"tags"`
 }
 
 // RebbleChangelog contains a list of version changes for an app
@@ -52,14 +52,14 @@ type RebbleVersion struct {
 
 // RebbleAppInfo contains information about the app (pbw url, versioning, links, etc.)
 type RebbleAppInfo struct {
-	PbwUrl      string           `json:"pbwUrl"`
-	RebbleReady bool             `json:"rebbleReady"`
-	Tags        []RebbleCategory `json:"tags"`
-	Updated     JSONTime         `json:"updated"`
-	Version     string           `json:"version"`
-	SupportUrl  string           `json:"supportUrl"`
-	AuthorUrl   string           `json:"authorUrl"`
-	SourceUrl   string           `json:"sourceUrl"`
+	PbwUrl      string             `json:"pbwUrl"`
+	RebbleReady bool               `json:"rebbleReady"`
+	Tags        []RebbleCollection `json:"tags"`
+	Updated     JSONTime           `json:"updated"`
+	Version     string             `json:"version"`
+	SupportUrl  string             `json:"supportUrl"`
+	AuthorUrl   string             `json:"authorUrl"`
+	SourceUrl   string             `json:"sourceUrl"`
 }
 
 // RebbleAuthor describes the autor of a Rebble app (ID and name)
@@ -81,8 +81,8 @@ type RebbleScreenshotsPlatform struct {
 	Screenshots []string `json:"screenshots"`
 }
 
-// RebbleCategory describes the category (collection) of a Rebble application
-type RebbleCategory struct {
+// RebbleCollection describes the collection (category) of a Rebble application
+type RebbleCollection struct {
 	Id    string `json:"id"`
 	Name  string `json:"name"`
 	Color string `json:"color"`
@@ -174,7 +174,7 @@ func (psi *PebbleScreenshotImages) UnmarshalJSON(b []byte) error {
 	return json.Unmarshal(b, (*([]PebbleScreenshotImage))(psi))
 }
 
-func parseApp(path string, authors *map[string]int, lastAuthorId *int, categoriesNames, categoriesColors *map[string]string) (*RebbleApplication, *[]RebbleVersion) {
+func parseApp(path string, authors *map[string]int, lastAuthorId *int, collectionNames, collectionColors *map[string]string) (*RebbleApplication, *[]RebbleVersion) {
 	f, err := ioutil.ReadFile(path)
 	if err != nil {
 		log.Fatal(err)
@@ -197,14 +197,14 @@ func parseApp(path string, authors *map[string]int, lastAuthorId *int, categorie
 		*lastAuthorId = *lastAuthorId + 1
 	}
 
-	// Create category if it doesn't exist
-	if _, ok := (*categoriesNames)[data.Apps[0].CategoryId]; !ok {
-		(*categoriesNames)[data.Apps[0].CategoryId] = data.Apps[0].CategoryName
-		(*categoriesColors)[data.Apps[0].CategoryId] = data.Apps[0].CategoryColor
+	// Create collection if it doesn't exist
+	if _, ok := (*collectionNames)[data.Apps[0].CategoryId]; !ok {
+		(*collectionNames)[data.Apps[0].CategoryId] = data.Apps[0].CategoryName
+		(*collectionColors)[data.Apps[0].CategoryId] = data.Apps[0].CategoryColor
 	}
 
 	app := RebbleApplication{}
-	app.AppInfo.Tags = make([]RebbleCategory, 1)
+	app.AppInfo.Tags = make([]RebbleCollection, 1)
 	screenshots := make(([]RebbleScreenshotsPlatform), 0)
 	app.Assets.Screenshots = &screenshots
 
@@ -368,12 +368,12 @@ func AppHandler(w http.ResponseWriter, r *http.Request) {
 	app.Published.Time = time.Unix(0, t_published)
 	app.AppInfo.Updated.Time = time.Unix(0, t_updated)
 	json.Unmarshal(tagIds_b, &tagIds)
-	app.AppInfo.Tags = make([]RebbleCategory, len(tagIds))
+	app.AppInfo.Tags = make([]RebbleCollection, len(tagIds))
 	json.Unmarshal(screenshots_b, &screenshots)
 	app.Assets.Screenshots = screenshots
 
 	for i, tagId := range tagIds {
-		rows, err := db.Query("SELECT id, name, color FROM categories WHERE id=?", tagId)
+		rows, err := db.Query("SELECT id, name, color FROM collections WHERE id=?", tagId)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -425,10 +425,10 @@ func TagsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	json.Unmarshal(tagIds_b, &tagIds)
 	tagList := RebbleTagList{}
-	tagList.Tags = make([]RebbleCategory, len(tagIds))
+	tagList.Tags = make([]RebbleCollection, len(tagIds))
 
 	for i, tagId := range tagIds {
-		rows, err := db.Query("SELECT id, name, color FROM categories WHERE id=?", tagId)
+		rows, err := db.Query("SELECT id, name, color FROM collections WHERE id=?", tagId)
 		if err != nil {
 			log.Fatal(err)
 		}
