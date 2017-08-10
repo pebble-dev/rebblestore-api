@@ -286,7 +286,7 @@ func AppsHandler(ctx *handlerContext, w http.ResponseWriter, r *http.Request) (i
 			ORDER BY published_date ASC LIMIT 20
 	`)
 	if err != nil {
-		return 500, err
+		return http.StatusInternalServerError, err
 	}
 
 	for rows.Next() {
@@ -295,7 +295,7 @@ func AppsHandler(ctx *handlerContext, w http.ResponseWriter, r *http.Request) (i
 		fmt.Fprintf(w, "Item: %s\n Author: %s\n\n", item.Name, item.Author.Name)
 	}
 
-	return 200, nil
+	return http.StatusOK, nil
 }
 
 // AppHandler returns a particular application from the backend DB as JSON
@@ -304,12 +304,12 @@ func AppHandler(ctx *handlerContext, w http.ResponseWriter, r *http.Request) (in
 
 	rows, err := db.Query("SELECT apps.id, apps.name, apps.author_id, authors.name, apps.tag_ids, apps.description, apps.thumbs_up, apps.type, apps.supported_platforms, apps.published_date, apps.pbw_url, apps.rebble_ready, apps.updated, apps.version, apps.support_url, apps.author_url, apps.source_url, apps.screenshot_urls, apps.banner_url, apps.icon_url, apps.doomsday_backup FROM apps JOIN authors ON apps.author_id = authors.id WHERE apps.id=?", mux.Vars(r)["id"])
 	if err != nil {
-		return 500, err
+		return http.StatusInternalServerError, err
 	}
 
 	exists := rows.Next()
 	if !exists {
-		return 404, errors.New("No application with this ID")
+		return http.StatusNotFound, errors.New("No application with this ID")
 	}
 
 	app := RebbleApplication{}
@@ -321,7 +321,7 @@ func AppHandler(ctx *handlerContext, w http.ResponseWriter, r *http.Request) (in
 	var screenshots *([]RebbleScreenshotsPlatform)
 	err = rows.Scan(&app.Id, &app.Name, &app.Author.Id, &app.Author.Name, &tagIds_b, &app.Description, &app.ThumbsUp, &app.Type, &supportedPlatforms_b, &t_published, &app.AppInfo.PbwUrl, &app.AppInfo.RebbleReady, &t_updated, &app.AppInfo.Version, &app.AppInfo.SupportUrl, &app.AppInfo.AuthorUrl, &app.AppInfo.SourceUrl, &screenshots_b, &app.Assets.Banner, &app.Assets.Icon, &app.DoomsdayBackup)
 	if err != nil {
-		return 500, err
+		return http.StatusInternalServerError, err
 	}
 	json.Unmarshal(supportedPlatforms_b, &app.SupportedPlatforms)
 	app.Published.Time = time.Unix(0, t_published)
@@ -334,7 +334,7 @@ func AppHandler(ctx *handlerContext, w http.ResponseWriter, r *http.Request) (in
 	for i, tagId := range tagIds {
 		rows, err := db.Query("SELECT id, name, color FROM categories WHERE id=?", tagId)
 		if err != nil {
-			return 500, err
+			return http.StatusInternalServerError, err
 		}
 
 		rows.Next()
@@ -352,7 +352,7 @@ func AppHandler(ctx *handlerContext, w http.ResponseWriter, r *http.Request) (in
 	// Send the JSON object back to the user
 	w.Header().Add("content-type", "application/json")
 	w.Write(data)
-	return 200, nil
+	return http.StatusOK, nil
 }
 
 func WriteCommonHeaders(w http.ResponseWriter) {

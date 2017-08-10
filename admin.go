@@ -130,7 +130,7 @@ func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.R
 		`
 	_, err = db.Exec(sqlStmt)
 	if err != nil {
-		return 500, fmt.Errorf("%q: %s", err, sqlStmt)
+		return http.StatusInternalServerError, fmt.Errorf("%q: %s", err, sqlStmt)
 	}
 
 	// Placeholder until we implement an actual collections system.
@@ -144,7 +144,7 @@ func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.R
 		`
 	_, err = db.Exec(sqlStmt)
 	if err != nil {
-		return 500, fmt.Errorf("%q: %s", err, sqlStmt)
+		return http.StatusInternalServerError, fmt.Errorf("%q: %s", err, sqlStmt)
 	}
 
 	tx, err := db.Begin()
@@ -216,7 +216,7 @@ func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.R
 	tx.Commit()
 
 	log.Print("AppStore Database rebuilt successfully.")
-	return 200, nil
+	return http.StatusOK, nil
 
 }
 
