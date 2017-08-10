@@ -11,9 +11,11 @@ To make the backend do anything, you also need to download a copy of the Pebble 
 ## Dev Environment Setup
 Pull down the project within your `$GOPATH`'s src folder ($GOPATH is an environment variable and is typically set to $HOME/go/ on \*nix). This can be done by running (for example) the following set of commands:
 
-        GOPATH=go/
-        mkdir -p $GOPATH/src/pebble-dev
-        git clone https://github.com/pebble-dev/rebblestore-api.git $GOPATH/src/pebble-dev/rebblestore-api
+```shell
+# export GOPATH=~/go/ # Optional if your didn't move your ~/go directory
+mkdir -p $GOPATH/src/pebble-dev
+git clone https://github.com/pebble-dev/rebblestore-api.git $GOPATH/src/pebble-dev/rebblestore-api
+```
 
 ## Build Process
 

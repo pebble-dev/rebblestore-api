@@ -22,6 +22,11 @@ type routeHandler struct {
 }
 
 func (rh routeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Write common headers
+	// http://stackoverflow.com/a/24818638
+	w.Header().Add("Access-Control-Allow-Origin", "http://docs.rebble.io")
+	w.Header().Add("Access-Control-Allow-Methods", "GET,POST")
+
 	// we can process user verification/auth token parsing and authorization here
 
 	// call the handler function

@@ -38,5 +38,6 @@ func TestMain(m *testing.M) {
 
 	server.Finish()
 
+	os.Remove("./foo_test.db")
 	os.Exit(exitCode)
 }

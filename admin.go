@@ -1,7 +1,6 @@
 package main
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -87,14 +86,12 @@ func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.R
 
 	//return /*
 	//db.Close()
-	os.Remove("./RebbleAppStore.db")
-	db, err := sql.Open("sqlite3", "./RebbleAppStore.db")
-	if err != nil {
-		log.Fatal(err)
-	}
+
+	db := ctx.db
 
 	// tag_ids and screenshot_urls are Marshaled arrays, hence the BLOB type.
 	sqlStmt := `
+			drop table apps;
 			create table apps (
 				id text not null primary key,
 				name text,
@@ -120,13 +117,14 @@ func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.R
 			);
 			delete from apps;
 		`
-	_, err = db.Exec(sqlStmt)
+	_, err := db.Exec(sqlStmt)
 	if err != nil {
-		log.Fatal("%q: %s\n", err, sqlStmt)
+		return http.StatusInternalServerError, err
 	}
 
 	// Placeholder until we implement an actual author/developer system.
 	sqlStmt = `
+			drop table authors;
 			create table authors (
 				id text not null primary key,
 				name text
@@ -135,11 +133,12 @@ func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.R
 		`
 	_, err = db.Exec(sqlStmt)
 	if err != nil {
-		return 500, fmt.Errorf("%q: %s", err, sqlStmt)
+		return http.StatusInternalServerError, fmt.Errorf("%q: %s", err, sqlStmt)
 	}
 
 	// Placeholder until we implement an actual collections system.
 	sqlStmt = `
+			drop table collections;
 			create table collections (
 				id text not null primary key,
 				name text,
@@ -152,17 +151,17 @@ func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.R
 		`
 	_, err = db.Exec(sqlStmt)
 	if err != nil {
-		return 500, fmt.Errorf("%q: %s", err, sqlStmt)
+		return http.StatusInternalServerError, fmt.Errorf("%q: %s", err, sqlStmt)
 	}
 
 	tx, err := db.Begin()
 	if err != nil {
-		log.Fatal(err)
+		return http.StatusInternalServerError, err
 	}
 
 	stmt, err := tx.Prepare("INSERT INTO apps(id, name, author_id, tag_ids, description, thumbs_up, type, supported_platforms, published_date, pbw_url, rebble_ready, updated, version, support_url, author_url, source_url, screenshot_urls, banner_url, icon_url, doomsday_backup, versions) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
 	if err != nil {
-		log.Fatal(err)
+		return http.StatusInternalServerError, err
 	}
 	defer stmt.Close()
 
@@ -173,7 +172,10 @@ func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.R
 	apps := make(map[string]RebbleApplication)
 	versions := make(map[string]([]RebbleVersion))
 	for item := range path {
-		app, v := parseApp(item, &authors, &lastAuthorId, &collections)
+		app, v, err := parseApp(item, &authors, &lastAuthorId, &collections)
+		if err != nil {
+			return http.StatusInternalServerError, err
+		}
 
 		if _, ok := apps[app.Id]; ok {
 			(*apps[app.Id].Assets.Screenshots) = append((*apps[app.Id].Assets.Screenshots), (*app.Assets.Screenshots)[0])
@@ -188,34 +190,34 @@ func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.R
 		tag_ids_s[0] = app.AppInfo.Tags[0].Id
 		tag_ids, err := json.Marshal(tag_ids_s)
 		if err != nil {
-			log.Fatal("Could not marshal app tags:", err)
+			return http.StatusInternalServerError, err
 		}
 		screenshots, err := json.Marshal(app.Assets.Screenshots)
 		if err != nil {
-			log.Fatal("Could not marshal app screenshots:", err)
+			return http.StatusInternalServerError, err
 		}
 		supported_platforms, err := json.Marshal(app.SupportedPlatforms)
 		if err != nil {
-			log.Fatal("Could not marshal app screenshots:", err)
+			return http.StatusInternalServerError, err
 		}
 		versions, err := json.Marshal(versions[app.Id])
 		if err != nil {
-			log.Fatal("Could not marshal app screenshots:", err)
+			return http.StatusInternalServerError, err
 		}
 
 		_, err = stmt.Exec(app.Id, app.Name, app.Author.Id, tag_ids, app.Description, app.ThumbsUp, app.Type, supported_platforms, app.Published.UnixNano(), app.AppInfo.PbwUrl, app.AppInfo.RebbleReady, app.AppInfo.Updated.UnixNano(), app.AppInfo.Version, app.AppInfo.SupportUrl, app.AppInfo.AuthorUrl, app.AppInfo.SourceUrl, screenshots, app.Assets.Banner, app.Assets.Icon, app.DoomsdayBackup, versions)
 		if err != nil {
-			log.Fatal(err)
+			return http.StatusInternalServerError, err
 		}
 	}
 	if err := <-errc; err != nil {
-		log.Fatal(err)
+		return http.StatusInternalServerError, err
 	}
 
 	for author, id := range authors {
 		_, err = tx.Exec("INSERT INTO authors(id, name) VALUES(?, ?)", id, author)
 		if err != nil {
-			log.Fatal(err)
+			return http.StatusInternalServerError, err
 		}
 	}
 
@@ -233,14 +235,14 @@ func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.R
 
 		_, err = tx.Exec("INSERT INTO collections(id, name, color, apps) VALUES(?, ?, ?, ?)", id, collection.Name, collection.Color, collectionApps_b)
 		if err != nil {
-			log.Fatal(err)
+			return http.StatusInternalServerError, err
 		}
 	}
 
 	tx.Commit()
 
 	log.Print("AppStore Database rebuilt successfully.")
-	return 200, nil
+	return http.StatusOK, nil
 
 }
 
@@ -249,7 +251,8 @@ func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.R
 // that built the binary, the date in-which the binary was built, and the
 // current git commit hash. Build information is populated during builds
 // triggered via the "make build" or "sup production deploy" commands.
-func AdminVersionHandler(w http.ResponseWriter, r *http.Request) {
-	WriteCommonHeaders(w)
+func AdminVersionHandler(ctx *handlerContext, w http.ResponseWriter, r *http.Request) (int, error) {
 	fmt.Fprintf(w, "Version %s\nBuild Host: %s\nBuild Date: %s\nBuild Hash: %s\n", Buildversionstring, Buildhost, Buildstamp, Buildgithash)
+
+	return http.StatusOK, nil
 }

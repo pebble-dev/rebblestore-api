@@ -1,9 +1,8 @@
 package main
 
 import (
-	"database/sql"
 	"encoding/json"
-	"log"
+	"errors"
 	"net/http"
 	"strconv"
 	"time"
@@ -128,88 +127,62 @@ func sortApps(apps *([]RebbleApplication), sortByPopular bool) *([]RebbleApplica
 }
 
 // CollectionHandler serves a list of cards from a collection
-func CollectionHandler(w http.ResponseWriter, r *http.Request) {
-	WriteCommonHeaders(w)
-	db, err := sql.Open("sqlite3", "./RebbleAppStore.db")
-	if err != nil {
-		w.WriteHeader(500)
-		w.Write([]byte("Unable to connect to DB"))
-		log.Println(err)
-		return
-	}
-	defer db.Close()
+func CollectionHandler(ctx *handlerContext, w http.ResponseWriter, r *http.Request) (int, error) {
+	db := ctx.db
 
 	urlquery := r.URL.Query()
 
 	if _, ok := mux.Vars(r)["id"]; !ok {
-		w.WriteHeader(400)
-		w.Write([]byte("Missing id parameter"))
-		return
+		return http.StatusBadRequest, errors.New("Missing 'id' parameter")
 	}
 
 	var sortByPopular bool
 	if o, ok := urlquery["order"]; ok {
 		if len(o) > 1 {
-			w.WriteHeader(400)
-			w.Write([]byte("Multiple order types are not allowed"))
-			return
+			return http.StatusBadRequest, errors.New("Multiple 'order' parameters are not allowed")
 		} else if o[0] == "popular" {
 			sortByPopular = true
 		} else if o[0] == "new" {
 			sortByPopular = false
 		} else {
-			w.WriteHeader(400)
-			w.Write([]byte("Invalid order parameter"))
-			return
+			return http.StatusBadRequest, errors.New("Invalid 'order' parameter")
 		}
 	}
 	platform := "all"
 	if o, ok := urlquery["platform"]; ok {
 		if len(o) > 1 {
-			w.WriteHeader(400)
-			w.Write([]byte("Multiple order types are not allowed"))
-			return
+			return http.StatusBadRequest, errors.New("Multiple 'platform' parameters are not allowed")
 		} else if o[0] == "aplite" || o[0] == "basalt" || o[0] == "chalk" || o[0] == "diorite" {
 			platform = o[0]
 		} else {
-			w.WriteHeader(400)
-			w.Write([]byte("Invalid platform parameter"))
-			return
+			return http.StatusBadRequest, errors.New("Invalid 'platform' parameter")
 		}
 	}
 	page := 1
 	if o, ok := urlquery["page"]; ok {
 		if len(o) > 1 {
-			w.WriteHeader(400)
-			w.Write([]byte("Multiple pages are not allowed"))
-			return
+			return http.StatusBadRequest, errors.New("Multiple pages not allowed")
 		} else {
+			var err error
 			page, err = strconv.Atoi(o[0])
 			if err != nil || page < 1 {
-				w.WriteHeader(400)
-				w.Write([]byte("Page should be a positive, non-nul integer"))
-				return
+				return http.StatusBadRequest, errors.New("Parameter 'page' should be a positive, non-nul integer")
 			}
 		}
 	}
 
 	rows, err := db.Query("SELECT apps FROM collections WHERE id=?", mux.Vars(r)["id"])
 	if err != nil {
-		w.WriteHeader(500)
-		w.Write([]byte("Unable to connect to DB"))
-		log.Println(err)
-		return
+		return http.StatusInternalServerError, err
 	}
 	if !rows.Next() {
-		w.WriteHeader(500)
-		w.Write([]byte("Specified collection does not exist"))
-		return
+		return http.StatusInternalServerError, errors.New("Specified collection does not exist")
 	}
 	var appIds_b []byte
 	var appIds []string
 	err = rows.Scan(&appIds_b)
 	if err != nil {
-		log.Fatal(err)
+		return http.StatusInternalServerError, err
 	}
 	json.Unmarshal(appIds_b, &appIds)
 
@@ -217,10 +190,7 @@ func CollectionHandler(w http.ResponseWriter, r *http.Request) {
 	for _, id := range appIds {
 		rows, err = db.Query("SELECT id, name, type, thumbs_up, icon_url, published_date, supported_platforms FROM apps WHERE id=?", id)
 		if err != nil {
-			w.WriteHeader(500)
-			w.Write([]byte("Unable to connect to DB"))
-			log.Println(err)
-			return
+			return http.StatusInternalServerError, err
 		}
 
 		for rows.Next() {
@@ -253,10 +223,12 @@ func CollectionHandler(w http.ResponseWriter, r *http.Request) {
 
 	data, err := json.MarshalIndent(cards, "", "\t")
 	if err != nil {
-		log.Fatal(err)
+		return http.StatusInternalServerError, err
 	}
 
 	// Send the JSON object back to the user
 	w.Header().Add("content-type", "application/json")
 	w.Write(data)
+
+	return http.StatusOK, nil
 }
