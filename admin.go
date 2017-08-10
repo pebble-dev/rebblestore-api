@@ -1,7 +1,6 @@
 package main
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -87,11 +86,8 @@ func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.R
 
 	//return /*
 	//db.Close()
-	os.Remove("./RebbleAppStore.db")
-	db, err := sql.Open("sqlite3", "./RebbleAppStore.db")
-	if err != nil {
-		log.Fatal(err)
-	}
+
+	db := ctx.db
 
 	// tag_ids and screenshot_urls are Marshaled arrays, hence the BLOB type.
 	sqlStmt := `
@@ -119,7 +115,7 @@ func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.R
 			);
 			delete from apps;
 		`
-	_, err = db.Exec(sqlStmt)
+	_, err := db.Exec(sqlStmt)
 	if err != nil {
 		log.Fatal("%q: %s\n", err, sqlStmt)
 	}

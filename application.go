@@ -1,8 +1,8 @@
 package main
 
 import (
-	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -274,16 +274,11 @@ func RecurseFolder(w http.ResponseWriter, path string, f os.FileInfo, lvl int) {
 //var db *sql.DB
 
 // AppsHandler lists all of the available applications from the backend DB.
-func AppsHandler(w http.ResponseWriter, r *http.Request) {
+func AppsHandler(ctx *handlerContext, w http.ResponseWriter, r *http.Request) (int, error) {
 	WriteCommonHeaders(w)
-	db, err := sql.Open("sqlite3", "./RebbleAppStore.db")
-	if err != nil {
-		w.WriteHeader(500)
-		w.Write([]byte("Unable to connect to DB"))
-		log.Println(err)
-		return
-	}
-	defer db.Close()
+
+	db := ctx.db
+
 	rows, err := db.Query(`
 			SELECT apps.name, authors.name
 			FROM apps
@@ -291,38 +286,30 @@ func AppsHandler(w http.ResponseWriter, r *http.Request) {
 			ORDER BY published_date ASC LIMIT 20
 	`)
 	if err != nil {
-		w.WriteHeader(500)
-		w.Write([]byte("Unable to connect to DB"))
-		log.Println(err)
-		return
+		return 500, err
 	}
+
 	for rows.Next() {
 		item := RebbleApplication{}
 		err = rows.Scan(&item.Name, &item.Author.Name)
 		fmt.Fprintf(w, "Item: %s\n Author: %s\n\n", item.Name, item.Author.Name)
 	}
+
+	return 200, nil
 }
 
 // AppHandler returns a particular application from the backend DB as JSON
-func AppHandler(w http.ResponseWriter, r *http.Request) {
-	WriteCommonHeaders(w)
-	db, err := sql.Open("sqlite3", "./RebbleAppStore.db")
-	if err != nil {
-		w.WriteHeader(500)
-		w.Write([]byte("Unable to connect to db"))
-		log.Println(err)
-		return
-	}
-	defer db.Close()
+func AppHandler(ctx *handlerContext, w http.ResponseWriter, r *http.Request) (int, error) {
+	db := ctx.db
+
 	rows, err := db.Query("SELECT apps.id, apps.name, apps.author_id, authors.name, apps.tag_ids, apps.description, apps.thumbs_up, apps.type, apps.supported_platforms, apps.published_date, apps.pbw_url, apps.rebble_ready, apps.updated, apps.version, apps.support_url, apps.author_url, apps.source_url, apps.screenshot_urls, apps.banner_url, apps.icon_url, apps.doomsday_backup FROM apps JOIN authors ON apps.author_id = authors.id WHERE apps.id=?", mux.Vars(r)["id"])
 	if err != nil {
-		log.Fatal(err)
+		return 500, err
 	}
+
 	exists := rows.Next()
 	if !exists {
-		w.WriteHeader(404)
-		w.Write([]byte("No application with this ID"))
-		return
+		return 404, errors.New("No application with this ID")
 	}
 
 	app := RebbleApplication{}
@@ -334,7 +321,7 @@ func AppHandler(w http.ResponseWriter, r *http.Request) {
 	var screenshots *([]RebbleScreenshotsPlatform)
 	err = rows.Scan(&app.Id, &app.Name, &app.Author.Id, &app.Author.Name, &tagIds_b, &app.Description, &app.ThumbsUp, &app.Type, &supportedPlatforms_b, &t_published, &app.AppInfo.PbwUrl, &app.AppInfo.RebbleReady, &t_updated, &app.AppInfo.Version, &app.AppInfo.SupportUrl, &app.AppInfo.AuthorUrl, &app.AppInfo.SourceUrl, &screenshots_b, &app.Assets.Banner, &app.Assets.Icon, &app.DoomsdayBackup)
 	if err != nil {
-		log.Fatal(err)
+		return 500, err
 	}
 	json.Unmarshal(supportedPlatforms_b, &app.SupportedPlatforms)
 	app.Published.Time = time.Unix(0, t_published)
@@ -347,7 +334,7 @@ func AppHandler(w http.ResponseWriter, r *http.Request) {
 	for i, tagId := range tagIds {
 		rows, err := db.Query("SELECT id, name, color FROM categories WHERE id=?", tagId)
 		if err != nil {
-			log.Fatal(err)
+			return 500, err
 		}
 
 		rows.Next()
@@ -359,12 +346,13 @@ func AppHandler(w http.ResponseWriter, r *http.Request) {
 
 	data, err := json.MarshalIndent(app, "", "\t")
 	if err != nil {
-		log.Fatal(err)
+		return 500, err
 	}
 
 	// Send the JSON object back to the user
 	w.Header().Add("content-type", "application/json")
 	w.Write(data)
+	return 200, nil
 }
 
 func WriteCommonHeaders(w http.ResponseWriter) {

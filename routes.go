@@ -19,8 +19,8 @@ func DummyHandler(w http.ResponseWriter, r *http.Request) {
 func Handlers(context *handlerContext) *mux.Router {
 	r := mux.NewRouter()
 	r.HandleFunc("/", HomeHandler).Methods("GET")
-	r.HandleFunc("/dev/apps", AppsHandler).Methods("GET")
-	r.HandleFunc("/dev/apps/id/{id}", AppHandler).Methods("GET")
+	r.Handle("/dev/apps", routeHandler{context, AppsHandler}).Methods("GET")
+	r.Handle("/dev/apps/id/{id}", routeHandler{context, AppHandler}).Methods("GET")
 	r.Handle("/admin/rebuild/db", routeHandler{context, AdminRebuildDBHandler}).Host("localhost")
 	r.HandleFunc("/admin/version", AdminVersionHandler)
 	//r.HandleFunc("/boot/{path:.*}", BootHandler).Methods("GET")
