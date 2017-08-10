@@ -33,6 +33,10 @@ type RebbleApplication struct {
 	DoomsdayBackup     bool          `json:"doomsday_backup"`
 }
 
+type RebbleTagList struct {
+	Tags []RebbleCategory `json:"tags"`
+}
+
 // RebbleAppInfo contains information about the app (pbw url, versioning, links, etc.)
 type RebbleAppInfo struct {
 	PbwUrl      string           `json:"pbwUrl"`
@@ -358,6 +362,61 @@ func AppHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data, err := json.MarshalIndent(app, "", "\t")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Send the JSON object back to the user
+	w.Header().Add("content-type", "application/json")
+	w.Write(data)
+}
+
+// TagsHandler returns the list of tags of a particular appliction as JSON
+func TagsHandler(w http.ResponseWriter, r *http.Request) {
+	WriteCommonHeaders(w)
+	db, err := sql.Open("sqlite3", "./RebbleAppStore.db")
+	if err != nil {
+		w.WriteHeader(500)
+		w.Write([]byte("Unable to connect to db"))
+		log.Println(err)
+		return
+	}
+	defer db.Close()
+	rows, err := db.Query("SELECT apps.tag_ids FROM apps")
+	if err != nil {
+		log.Fatal(err)
+	}
+	exists := rows.Next()
+	if !exists {
+		w.WriteHeader(404)
+		w.Write([]byte("No application with this ID"))
+		return
+	}
+
+	var tagIds_b []byte
+	var tagIds []string
+	err = rows.Scan(&tagIds_b)
+	if err != nil {
+		log.Fatal(err)
+	}
+	json.Unmarshal(tagIds_b, &tagIds)
+	tagList := RebbleTagList{}
+	tagList.Tags = make([]RebbleCategory, len(tagIds))
+
+	for i, tagId := range tagIds {
+		rows, err := db.Query("SELECT id, name, color FROM categories WHERE id=?", tagId)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		rows.Next()
+		err = rows.Scan(&tagList.Tags[i].Id, &tagList.Tags[i].Name, &tagList.Tags[i].Color)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	data, err := json.MarshalIndent(tagList, "", "\t")
 	if err != nil {
 		log.Fatal(err)
 	}
