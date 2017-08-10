@@ -33,8 +33,21 @@ type RebbleApplication struct {
 	DoomsdayBackup     bool          `json:"doomsday_backup"`
 }
 
+// RebbleTagList contains a list of tag. Used by getApi(id)
 type RebbleTagList struct {
 	Tags []RebbleCategory `json:"tags"`
+}
+
+// RebbleChangelog contains a list of version changes for an app
+type RebbleChangelog struct {
+	Versions []RebbleVersion `json:"versions"`
+}
+
+// RebbleVersion contains information about a specific version of an app
+type RebbleVersion struct {
+	Number      string   `json:"number"`
+	ReleaseDate JSONTime `json:"release_date"`
+	Description string   `json:"description"`
 }
 
 // RebbleAppInfo contains information about the app (pbw url, versioning, links, etc.)
@@ -94,6 +107,7 @@ type PebbleApplication struct {
 	Hearts             int                      `json:"hearts"`
 	Type               string                   `json:"type"`
 	Compatibility      PebbleCompatibility      `json:"compatibility"`
+	Changelog          []PebbleVersion          `json:"changelog"`
 }
 
 // PebbleApplicationRelease describes the `release` tag of a pebble JSON
@@ -102,6 +116,13 @@ type PebbleApplicationRelease struct {
 	PbwUrl    string   `json:"pbw_file"`
 	Published JSONTime `json:"published_date"`
 	Version   string   `json:"version"`
+}
+
+// PebbleVersion describes a version change
+type PebbleVersion struct {
+	Version   string   `json:"version"`
+	Published JSONTime `json:"published_date"`
+	Notes     string   `json:"release_notes"`
 }
 
 // PebbleCompatibility describes the `compatibility` tag of a pebble JSON
@@ -154,7 +175,7 @@ func (psi *PebbleScreenshotImages) UnmarshalJSON(b []byte) error {
 	return json.Unmarshal(b, (*([]PebbleScreenshotImage))(psi))
 }
 
-func parseApp(path string, authors *map[string]int, lastAuthorId *int, categoriesNames, categoriesColors *map[string]string) *RebbleApplication {
+func parseApp(path string, authors *map[string]int, lastAuthorId *int, categoriesNames, categoriesColors *map[string]string) (*RebbleApplication, *[]RebbleVersion) {
 	f, err := ioutil.ReadFile(path)
 	if err != nil {
 		log.Fatal(err)
@@ -244,7 +265,14 @@ func parseApp(path string, authors *map[string]int, lastAuthorId *int, categorie
 	}
 	app.DoomsdayBackup = false
 
-	return &app
+	versions := make([]RebbleVersion, len(data.Apps[0].Changelog))
+	for i, pv := range data.Apps[0].Changelog {
+		versions[i].Number = pv.Version
+		versions[i].Description = pv.Notes
+		versions[i].ReleaseDate = pv.Published
+	}
+
+	return &app, &versions
 }
 
 // HomeHandler is the index page.
@@ -417,6 +445,47 @@ func TagsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data, err := json.MarshalIndent(tagList, "", "\t")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Send the JSON object back to the user
+	w.Header().Add("content-type", "application/json")
+	w.Write(data)
+}
+
+func VersionsHandler(w http.ResponseWriter, r *http.Request) {
+	WriteCommonHeaders(w)
+	db, err := sql.Open("sqlite3", "./RebbleAppStore.db")
+	if err != nil {
+		w.WriteHeader(500)
+		w.Write([]byte("Unable to connect to db"))
+		log.Println(err)
+		return
+	}
+	defer db.Close()
+	rows, err := db.Query("SELECT apps.versions FROM apps")
+	if err != nil {
+		log.Fatal(err)
+	}
+	exists := rows.Next()
+	if !exists {
+		w.WriteHeader(404)
+		w.Write([]byte("No application with this ID"))
+		return
+	}
+
+	var versions_b []byte
+	var versions []RebbleVersion
+	err = rows.Scan(&versions_b)
+	if err != nil {
+		log.Fatal(err)
+	}
+	json.Unmarshal(versions_b, &versions)
+	changelog := RebbleChangelog{}
+	changelog.Versions = versions
+
+	data, err := json.MarshalIndent(changelog, "", "\t")
 	if err != nil {
 		log.Fatal(err)
 	}

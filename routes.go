@@ -22,6 +22,7 @@ func Handlers(context *handlerContext) *mux.Router {
 	r.HandleFunc("/dev/apps", AppsHandler).Methods("GET")
 	r.HandleFunc("/dev/apps/get_app/id/{id}", AppHandler).Methods("GET")
 	r.HandleFunc("/dev/apps/get_tags/id/{id}", TagsHandler).Methods("GET")
+	r.HandleFunc("/dev/apps/get_versions/id/{id}", VersionsHandler).Methods("GET")
 	r.Handle("/admin/rebuild/db", routeHandler{context, AdminRebuildDBHandler}).Host("localhost")
 	r.HandleFunc("/admin/version", AdminVersionHandler)
 	//r.HandleFunc("/boot/{path:.*}", BootHandler).Methods("GET")
