@@ -102,6 +102,7 @@ type PebbleApplication struct {
 	Website            string                   `json:"website"`
 	Source             string                   `json:"source"`
 	Screenshots        PebbleScreenshotImages   `json:"screenshot_images"`
+	Icons              PebbleIcons              `json:"icon_image"`
 	ScreenshotHardware string                   `json:"screenshot_hardware"`
 	HeaderImages       PebbleHeaderImages       `json:"header_images"`
 	Hearts             int                      `json:"hearts"`
@@ -154,6 +155,9 @@ type PebbleHeaderImage struct {
 // PebbleScreenshotImage is used by PebbleHeaderImages to allow mixed contents
 type PebbleScreenshotImage map[string]string
 
+// PebbleIcons contains the icon at varying resolutions
+type PebbleIcons map[string]string
+
 // UnmarshalJSON for PebbleHeaderImages allows for mixed content
 func (phi *PebbleHeaderImages) UnmarshalJSON(b []byte) error {
 	if len(b) == 0 || b[0] == '"' {
@@ -172,6 +176,16 @@ func (psi *PebbleScreenshotImages) UnmarshalJSON(b []byte) error {
 	}
 
 	return json.Unmarshal(b, (*([]PebbleScreenshotImage))(psi))
+}
+
+// UnmarshalJSON for PebbleIcons allows for mixed content
+func (pi *PebbleIcons) UnmarshalJSON(b []byte) error {
+	if len(b) == 0 || b[0] == '"' {
+		*pi = make(map[string]string, 0)
+		return nil
+	}
+
+	return json.Unmarshal(b, (*(map[string]string))(pi))
 }
 
 func parseApp(path string, authors *map[string]int, lastAuthorId *int, collectionNames, collectionColors *map[string]string) (*RebbleApplication, *[]RebbleVersion) {
@@ -251,7 +265,9 @@ func parseApp(path string, authors *map[string]int, lastAuthorId *int, collectio
 	} else {
 		app.Assets.Banner = ""
 	}
-	app.Assets.Icon = ""
+	if icon, ok := data.Apps[0].Icons["48x48"]; ok {
+		app.Assets.Icon = icon
+	}
 	screenshots = append(*app.Assets.Screenshots, RebbleScreenshotsPlatform{data.Apps[0].ScreenshotHardware, make([]string, 0)})
 	app.Assets.Screenshots = &screenshots
 	for _, screenshot := range data.Apps[0].Screenshots {
