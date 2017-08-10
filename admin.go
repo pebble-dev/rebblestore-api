@@ -1,7 +1,6 @@
 package main
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -87,14 +86,12 @@ func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.R
 
 	//return /*
 	//db.Close()
-	os.Remove("./RebbleAppStore.db")
-	db, err := sql.Open("sqlite3", "./RebbleAppStore.db")
-	if err != nil {
-		log.Fatal(err)
-	}
+
+	db := ctx.db
 
 	// tag_ids and screenshot_urls are Marshaled arrays, hence the BLOB type.
 	sqlStmt := `
+			drop table apps;
 			create table apps (
 				id text not null primary key,
 				name text,
@@ -119,13 +116,14 @@ func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.R
 			);
 			delete from apps;
 		`
-	_, err = db.Exec(sqlStmt)
+	_, err := db.Exec(sqlStmt)
 	if err != nil {
 		log.Fatal("%q: %s\n", err, sqlStmt)
 	}
 
 	// Placeholder until we implement an actual author/developer system.
 	sqlStmt = `
+			drop table authors;
 			create table authors (
 				id text not null primary key,
 				name text
@@ -134,11 +132,12 @@ func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.R
 		`
 	_, err = db.Exec(sqlStmt)
 	if err != nil {
-		return 500, fmt.Errorf("%q: %s", err, sqlStmt)
+		return http.StatusInternalServerError, fmt.Errorf("%q: %s", err, sqlStmt)
 	}
 
 	// Placeholder until we implement an actual collections system.
 	sqlStmt = `
+			drop table categories;
 			create table categories (
 				id text not null primary key,
 				name text,
@@ -148,7 +147,7 @@ func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.R
 		`
 	_, err = db.Exec(sqlStmt)
 	if err != nil {
-		return 500, fmt.Errorf("%q: %s", err, sqlStmt)
+		return http.StatusInternalServerError, fmt.Errorf("%q: %s", err, sqlStmt)
 	}
 
 	tx, err := db.Begin()
@@ -220,7 +219,7 @@ func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.R
 	tx.Commit()
 
 	log.Print("AppStore Database rebuilt successfully.")
-	return 200, nil
+	return http.StatusOK, nil
 
 }
 
