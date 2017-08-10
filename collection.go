@@ -10,75 +10,86 @@ import (
 	"github.com/gorilla/mux"
 )
 
-func insert(cards *([]RebbleCard), location int, card RebbleCard) *([]RebbleCard) {
-	beggining := (*cards)[:location]
-	end := make([]RebbleCard, len(*cards)-len(beggining))
-	copy(end, (*cards)[location:])
-	beggining = append(beggining, card)
+func insert(apps *([]RebbleApplication), location int, app RebbleApplication) *([]RebbleApplication) {
+	beggining := (*apps)[:location]
+	end := make([]RebbleApplication, len(*apps)-len(beggining))
+	copy(end, (*apps)[location:])
+	beggining = append(beggining, app)
 	beggining = append(beggining, end...)
 
 	return &beggining
 }
 
-func remove(cards *([]RebbleCard), location int) *([]RebbleCard) {
-	new := make([]RebbleCard, location)
-	copy(new, (*cards)[:location])
-	new = append(new, (*cards)[location+1:]...)
+func remove(apps *([]RebbleApplication), location int) *([]RebbleApplication) {
+	new := make([]RebbleApplication, location)
+	copy(new, (*apps)[:location])
+	new = append(new, (*apps)[location+1:]...)
 
 	return &new
 }
 
-func bestCards(cards *([]RebbleCard), sortByPopular bool, nCards int) *([]RebbleCard) {
-	newCards := make([]RebbleCard, nCards)
-	copy(newCards, *cards)
+func in_array(s string, array []string) bool {
+	for _, item := range array {
+		if item == s {
+			return true
+		}
+	}
 
-	for _, card := range *cards {
-		newCards = append(newCards, card)
+	return false
+}
 
-		if len(newCards) > nCards {
+func bestApps(apps *([]RebbleApplication), sortByPopular bool, nApps int, platform string) *([]RebbleApplication) {
+	newApps := make([]RebbleApplication, 0)
+
+	for _, app := range *apps {
+		if platform == "all" || in_array(platform, app.SupportedPlatforms) {
+			newApps = append(newApps, app)
+		}
+
+		if len(newApps) > nApps {
 			if sortByPopular {
 				worst := 0
-				for i, newCard := range newCards {
-					if newCard.ThumbsUp < newCards[worst].ThumbsUp {
+				for i, newApp := range newApps {
+					if newApp.ThumbsUp < newApps[worst].ThumbsUp {
 						worst = i
 					}
 				}
-				newCards = *(remove(&newCards, worst))
+				newApps = *(remove(&newApps, worst))
 			} else {
 				worst := 0
-				for i, newCard := range newCards {
-					if newCard.Published.UnixNano() < newCards[worst].Published.UnixNano() {
+				for i, newApp := range newApps {
+					if newApp.Published.UnixNano() < newApps[worst].Published.UnixNano() {
 						worst = i
 					}
 				}
-				newCards = *(remove(&newCards, worst))
+				newApps = *(remove(&newApps, worst))
 			}
 		}
 	}
 
-	return &newCards
+	return &newApps
 }
 
-func sortCards(cards *([]RebbleCard), sortByPopular bool) *([]RebbleCard) {
-	newCards := make([]RebbleCard, 0)
+func sortApps(apps *([]RebbleApplication), sortByPopular bool) *([]RebbleApplication) {
+	newApps := make([]RebbleApplication, 0)
 
-	for _, card := range *cards {
-		if len(newCards) == 0 {
-			newCards = []RebbleCard{card}
+	for _, app := range *apps {
+		if len(newApps) == 0 {
+			newApps = []RebbleApplication{app}
 
 			continue
-		} else if len(newCards) == 1 {
+		} else if len(newApps) == 1 {
 			if sortByPopular {
-				if newCards[0].ThumbsUp > card.ThumbsUp {
-					newCards = []RebbleCard{newCards[0], card}
+				if newApps[0].ThumbsUp > app.ThumbsUp {
+					newApps = []RebbleApplication{newApps[0], app}
 				} else {
-					newCards = []RebbleCard{card, newCards[0]}
+					newApps = []RebbleApplication{app, newApps[0]}
 				}
 			} else {
-				if newCards[0].Published.UnixNano() > card.Published.UnixNano() {
-					newCards = []RebbleCard{card, newCards[0]}
+				if newApps[0].Published.UnixNano() > app.Published.UnixNano() {
+					newApps = []RebbleApplication{app, newApps[0]}
 				} else {
-					newCards = []RebbleCard{newCards[0], card}
+					newApps = []RebbleApplication{newApps[0], app}
 				}
 			}
 
@@ -86,23 +97,23 @@ func sortCards(cards *([]RebbleCard), sortByPopular bool) *([]RebbleCard) {
 		}
 
 		if sortByPopular {
-			for i, newCard := range newCards {
-				if newCard.ThumbsUp < card.ThumbsUp {
-					newCards = *(insert(&newCards, i, card))
+			for i, newApp := range newApps {
+				if newApp.ThumbsUp < app.ThumbsUp {
+					newApps = *(insert(&newApps, i, app))
 					break
 				}
 			}
 		} else {
-			for i, newCard := range newCards {
-				if card.Published.UnixNano() > newCard.Published.UnixNano() {
-					newCards = *(insert(&newCards, i, card))
+			for i, newApp := range newApps {
+				if app.Published.UnixNano() > newApp.Published.UnixNano() {
+					newApps = *(insert(&newApps, i, app))
 					break
 				}
 			}
 		}
 	}
 
-	return &newCards
+	return &newApps
 }
 
 // CollectionHandler serves a list of cards from a collection
@@ -141,6 +152,20 @@ func CollectionHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	platform := "all"
+	if o, ok := urlquery["platform"]; ok {
+		if len(o) > 1 {
+			w.WriteHeader(400)
+			w.Write([]byte("Multiple order types are not allowed"))
+			return
+		} else if o[0] == "aplite" || o[0] == "basalt" || o[0] == "chalk" || o[0] == "diorite" {
+			platform = o[0]
+		} else {
+			w.WriteHeader(400)
+			w.Write([]byte("Invalid platform parameter"))
+			return
+		}
+	}
 
 	rows, err := db.Query("SELECT apps FROM collections WHERE id=?", mux.Vars(r)["id"])
 	if err != nil {
@@ -162,10 +187,9 @@ func CollectionHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	json.Unmarshal(appIds_b, &appIds)
 
-	var cards RebbleCards
-	cards.Cards = make([]RebbleCard, 0)
+	apps := make([]RebbleApplication, 0)
 	for _, id := range appIds {
-		rows, err = db.Query("SELECT id, name, type, thumbs_up, icon_url, published_date FROM apps WHERE id=?", id)
+		rows, err = db.Query("SELECT id, name, type, thumbs_up, icon_url, published_date, supported_platforms FROM apps WHERE id=?", id)
 		if err != nil {
 			w.WriteHeader(500)
 			w.Write([]byte("Unable to connect to DB"))
@@ -174,16 +198,29 @@ func CollectionHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		for rows.Next() {
-			card := RebbleCard{}
+			app := RebbleApplication{}
 			var t int64
-			err = rows.Scan(&card.Id, &card.Title, &card.Type, &card.ThumbsUp, &card.ImageUrl, &t)
-			card.Published.Time = time.Unix(0, t)
-			cards.Cards = append(cards.Cards, card)
+			var supported_platforms_b []byte
+			err = rows.Scan(&app.Id, &app.Name, &app.Type, &app.ThumbsUp, &app.Assets.Icon, &t, &supported_platforms_b)
+			app.Published.Time = time.Unix(0, t)
+			err = json.Unmarshal(supported_platforms_b, &app.SupportedPlatforms)
+			apps = append(apps, app)
 		}
 	}
 
-	cards.Cards = *(bestCards(&cards.Cards, sortByPopular, 12))
-	cards.Cards = *(sortCards(&cards.Cards, sortByPopular))
+	apps = *(bestApps(&apps, sortByPopular, 12, platform))
+	apps = *(sortApps(&apps, sortByPopular))
+
+	var cards RebbleCards
+	for _, app := range apps {
+		cards.Cards = append(cards.Cards, RebbleCard{
+			Id:       app.Id,
+			Title:    app.Name,
+			Type:     app.Type,
+			ImageUrl: app.Assets.Icon,
+			ThumbsUp: app.ThumbsUp,
+		})
+	}
 
 	data, err := json.MarshalIndent(cards, "", "\t")
 	if err != nil {
