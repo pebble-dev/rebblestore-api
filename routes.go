@@ -18,14 +18,18 @@ func DummyHandler(w http.ResponseWriter, r *http.Request) {
 // Handlers returns a mux.Router with all possible routes already setup.
 func Handlers(context *handlerContext) *mux.Router {
 	r := mux.NewRouter()
-	r.HandleFunc("/", HomeHandler).Methods("GET")
+	r.Handle("/", routeHandler{context, HomeHandler}).Methods("GET")
 	r.Handle("/dev/apps", routeHandler{context, AppsHandler}).Methods("GET")
-	r.Handle("/dev/apps/id/{id}", routeHandler{context, AppHandler}).Methods("GET")
+	r.Handle("/dev/apps/get_app/id/{id}", routeHandler{context, AppHandler}).Methods("GET")
+	r.Handle("/dev/apps/get_tags/id/{id}", routeHandler{context, TagsHandler}).Methods("GET")
+	r.Handle("/dev/apps/get_versions/id/{id}", routeHandler{context, VersionsHandler}).Methods("GET")
+	r.Handle("/dev/apps/get_collection/id/{id}", routeHandler{context, CollectionHandler}).Methods("GET")
+	r.Handle("/dev/apps/search/{query}", routeHandler{context, SearchHandler}).Methods("GET")
 	r.Handle("/admin/rebuild/db", routeHandler{context, AdminRebuildDBHandler}).Host("localhost")
-	r.HandleFunc("/admin/version", AdminVersionHandler)
+	r.Handle("/admin/version", routeHandler{context, AdminVersionHandler})
 	//r.HandleFunc("/boot/{path:.*}", BootHandler).Methods("GET")
 	// Added OS parameter
-	r.HandleFunc("/boot/{os}/{path:.*}", BootHandler).Methods("GET")
+	r.Handle("/boot/{os}/{path:.*}", routeHandler{context, BootHandler}).Methods("GET")
 
 	// The boot parameter wasn't working when set to /boot/ and this was used as
 	// an alternative. However, using the {path:.*} matching appears to have

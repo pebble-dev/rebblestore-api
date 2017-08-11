@@ -112,13 +112,14 @@ func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.R
 				screenshot_urls blob,
 				banner_url text,
 				icon_url text,
-				doomsday_backup integer
+				doomsday_backup integer,
+				versions blob
 			);
 			delete from apps;
 		`
 	_, err := db.Exec(sqlStmt)
 	if err != nil {
-		log.Fatal("%q: %s\n", err, sqlStmt)
+		return http.StatusInternalServerError, err
 	}
 
 	// Placeholder until we implement an actual author/developer system.
@@ -137,13 +138,16 @@ func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.R
 
 	// Placeholder until we implement an actual collections system.
 	sqlStmt = `
-			drop table categories;
-			create table categories (
+			drop table collections;
+			create table collections (
 				id text not null primary key,
 				name text,
-				color text
+				color text,
+				apps blob,
+				cache_apps_most_popular blob,
+				cache_time integer
 			);
-			delete from categories;
+			delete from collections;
 		`
 	_, err = db.Exec(sqlStmt)
 	if err != nil {
@@ -152,28 +156,32 @@ func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.R
 
 	tx, err := db.Begin()
 	if err != nil {
-		log.Fatal(err)
+		return http.StatusInternalServerError, err
 	}
 
-	stmt, err := tx.Prepare("INSERT INTO apps(id, name, author_id, tag_ids, description, thumbs_up, type, supported_platforms, published_date, pbw_url, rebble_ready, updated, version, support_url, author_url, source_url, screenshot_urls, banner_url, icon_url, doomsday_backup) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+	stmt, err := tx.Prepare("INSERT INTO apps(id, name, author_id, tag_ids, description, thumbs_up, type, supported_platforms, published_date, pbw_url, rebble_ready, updated, version, support_url, author_url, source_url, screenshot_urls, banner_url, icon_url, doomsday_backup, versions) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
 	if err != nil {
-		log.Fatal(err)
+		return http.StatusInternalServerError, err
 	}
 	defer stmt.Close()
 
 	authors := make(map[string]int)
-	categoriesNames := make(map[string]string)
-	categoriesColors := make(map[string]string)
+	collections := make(map[string]RebbleCollection)
 	lastAuthorId := 0
 	path, errc := walkFiles("PebbleAppStore/")
 	apps := make(map[string]RebbleApplication)
+	versions := make(map[string]([]RebbleVersion))
 	for item := range path {
-		app := parseApp(item, &authors, &lastAuthorId, &categoriesNames, &categoriesColors)
+		app, v, err := parseApp(item, &authors, &lastAuthorId, &collections)
+		if err != nil {
+			return http.StatusInternalServerError, err
+		}
 
 		if _, ok := apps[app.Id]; ok {
 			(*apps[app.Id].Assets.Screenshots) = append((*apps[app.Id].Assets.Screenshots), (*app.Assets.Screenshots)[0])
 		} else {
 			apps[app.Id] = *app
+			versions[app.Id] = *v
 		}
 	}
 
@@ -182,37 +190,52 @@ func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.R
 		tag_ids_s[0] = app.AppInfo.Tags[0].Id
 		tag_ids, err := json.Marshal(tag_ids_s)
 		if err != nil {
-			log.Fatal("Could not marshal app tags:", err)
+			return http.StatusInternalServerError, err
 		}
 		screenshots, err := json.Marshal(app.Assets.Screenshots)
 		if err != nil {
-			log.Fatal("Could not marshal app screenshots:", err)
+			return http.StatusInternalServerError, err
 		}
 		supported_platforms, err := json.Marshal(app.SupportedPlatforms)
 		if err != nil {
-			log.Fatal("Could not marshal app screenshots:", err)
+			return http.StatusInternalServerError, err
+		}
+		versions, err := json.Marshal(versions[app.Id])
+		if err != nil {
+			return http.StatusInternalServerError, err
 		}
 
-		_, err = stmt.Exec(app.Id, app.Name, app.Author.Id, tag_ids, app.Description, app.ThumbsUp, app.Type, supported_platforms, app.Published.UnixNano(), app.AppInfo.PbwUrl, app.AppInfo.RebbleReady, app.AppInfo.Updated.UnixNano(), app.AppInfo.Version, app.AppInfo.SupportUrl, app.AppInfo.AuthorUrl, app.AppInfo.SourceUrl, screenshots, app.Assets.Banner, app.Assets.Icon, app.DoomsdayBackup)
+		_, err = stmt.Exec(app.Id, app.Name, app.Author.Id, tag_ids, app.Description, app.ThumbsUp, app.Type, supported_platforms, app.Published.UnixNano(), app.AppInfo.PbwUrl, app.AppInfo.RebbleReady, app.AppInfo.Updated.UnixNano(), app.AppInfo.Version, app.AppInfo.SupportUrl, app.AppInfo.AuthorUrl, app.AppInfo.SourceUrl, screenshots, app.Assets.Banner, app.Assets.Icon, app.DoomsdayBackup, versions)
 		if err != nil {
-			log.Fatal(err)
+			return http.StatusInternalServerError, err
 		}
 	}
 	if err := <-errc; err != nil {
-		log.Fatal(err)
+		return http.StatusInternalServerError, err
 	}
 
 	for author, id := range authors {
 		_, err = tx.Exec("INSERT INTO authors(id, name) VALUES(?, ?)", id, author)
 		if err != nil {
-			log.Fatal(err)
+			return http.StatusInternalServerError, err
 		}
 	}
 
-	for id, category := range categoriesNames {
-		_, err = tx.Exec("INSERT INTO categories(id, name, color) VALUES(?, ?, ?)", id, category, categoriesColors[id])
+	for id, collection := range collections {
+		collectionApps := make([]string, 0)
+		for _, app := range apps {
+			for _, tag := range app.AppInfo.Tags {
+				if tag.Id == collection.Id {
+					collectionApps = append(collectionApps, app.Id)
+				}
+			}
+		}
+
+		collectionApps_b, err := json.Marshal(collectionApps)
+
+		_, err = tx.Exec("INSERT INTO collections(id, name, color, apps) VALUES(?, ?, ?, ?)", id, collection.Name, collection.Color, collectionApps_b)
 		if err != nil {
-			log.Fatal(err)
+			return http.StatusInternalServerError, err
 		}
 	}
 
@@ -228,7 +251,8 @@ func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.R
 // that built the binary, the date in-which the binary was built, and the
 // current git commit hash. Build information is populated during builds
 // triggered via the "make build" or "sup production deploy" commands.
-func AdminVersionHandler(w http.ResponseWriter, r *http.Request) {
-	WriteCommonHeaders(w)
+func AdminVersionHandler(ctx *handlerContext, w http.ResponseWriter, r *http.Request) (int, error) {
 	fmt.Fprintf(w, "Version %s\nBuild Host: %s\nBuild Date: %s\nBuild Hash: %s\n", Buildversionstring, Buildhost, Buildstamp, Buildgithash)
+
+	return http.StatusOK, nil
 }

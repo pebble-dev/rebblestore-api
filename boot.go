@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -57,14 +58,11 @@ type WebviewsConfig struct {
 
 // BootHandler is based off of [@afourney|https://github.com/afourney]'s
 // development bootstrap override.
-func BootHandler(w http.ResponseWriter, r *http.Request) {
-	WriteCommonHeaders(w)
+func BootHandler(ctx *handlerContext, w http.ResponseWriter, r *http.Request) (int, error) {
 	// Get a store uri from the request and determine if it matches a valid URI
 	store_uri := r.URL.Query().Get("store_uri")
 	if _, err := url.Parse(store_uri); err != nil {
-		w.WriteHeader(400)
-		w.Write([]byte("Invalid store_uri query"))
-		return
+		return http.StatusInternalServerError, err
 	}
 
 	// Copying the URL Query to modify it later
@@ -84,29 +82,26 @@ func BootHandler(w http.ResponseWriter, r *http.Request) {
 	if os == "android" || os == "ios" {
 		request_url = fmt.Sprintf("%s%s/%s?%s", PEBBLE_BOOT_URL, os, mux.Vars(r)["path"], urlquery.Encode())
 	} else {
-		w.Write([]byte("Invalid OS parameter"))
-		return
+		return http.StatusBadRequest, errors.New("Invalid OS parameter")
 	}
 	// Make a request to an external server then parse the request
 	req, err := http.Get(request_url)
 	if err != nil {
-		log.Fatal("Could not contact api:", err)
+		return http.StatusInternalServerError, err
 	}
 	if req.StatusCode < 200 || req.StatusCode > 299 {
 		log.Println("API Answered with status code", req.StatusCode, "- carrying on anyway...")
 	}
 	data, err := ioutil.ReadAll(req.Body)
 	if err != nil {
-		log.Fatal("Could not read api response:", err)
+		return http.StatusInternalServerError, err
 	}
 
 	// Decode the JSON data
 	response := &BootJSON{}
 	err = json.Unmarshal(data, response)
 	if err != nil {
-		log.Println("Could not parse api response: ", err)
-		w.Write(data)
-		return
+		return http.StatusInternalServerError, err
 	}
 
 	// Replace items in the JSON object, then prepare to output it
@@ -121,10 +116,12 @@ func BootHandler(w http.ResponseWriter, r *http.Request) {
 
 	data, err = json.MarshalIndent(response, "", "\t")
 	if err != nil {
-		log.Fatal(err)
+		return http.StatusInternalServerError, err
 	}
 
 	// Send the JSON object back to the user
 	w.Header().Add("content-type", "application/json")
 	w.Write(data)
+
+	return http.StatusOK, nil
 }

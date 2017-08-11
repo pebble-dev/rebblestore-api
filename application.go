@@ -33,16 +33,33 @@ type RebbleApplication struct {
 	DoomsdayBackup     bool          `json:"doomsday_backup"`
 }
 
+// RebbleTagList contains a list of tag. Used by getApi(id)
+type RebbleTagList struct {
+	Tags []RebbleCollection `json:"tags"`
+}
+
+// RebbleChangelog contains a list of version changes for an app
+type RebbleChangelog struct {
+	Versions []RebbleVersion `json:"versions"`
+}
+
+// RebbleVersion contains information about a specific version of an app
+type RebbleVersion struct {
+	Number      string   `json:"number"`
+	ReleaseDate JSONTime `json:"release_date"`
+	Description string   `json:"description"`
+}
+
 // RebbleAppInfo contains information about the app (pbw url, versioning, links, etc.)
 type RebbleAppInfo struct {
-	PbwUrl      string           `json:"pbwUrl"`
-	RebbleReady bool             `json:"rebbleReady"`
-	Tags        []RebbleCategory `json:"tags"`
-	Updated     JSONTime         `json:"updated"`
-	Version     string           `json:"version"`
-	SupportUrl  string           `json:"supportUrl"`
-	AuthorUrl   string           `json:"authorUrl"`
-	SourceUrl   string           `json:"sourceUrl"`
+	PbwUrl      string             `json:"pbwUrl"`
+	RebbleReady bool               `json:"rebbleReady"`
+	Tags        []RebbleCollection `json:"tags"`
+	Updated     JSONTime           `json:"updated"`
+	Version     string             `json:"version"`
+	SupportUrl  string             `json:"supportUrl"`
+	AuthorUrl   string             `json:"authorUrl"`
+	SourceUrl   string             `json:"sourceUrl"`
 }
 
 // RebbleAuthor describes the autor of a Rebble app (ID and name)
@@ -64,8 +81,8 @@ type RebbleScreenshotsPlatform struct {
 	Screenshots []string `json:"screenshots"`
 }
 
-// RebbleCategory describes the category (collection) of a Rebble application
-type RebbleCategory struct {
+// RebbleCollection describes the collection (category) of a Rebble application
+type RebbleCollection struct {
 	Id    string `json:"id"`
 	Name  string `json:"name"`
 	Color string `json:"color"`
@@ -85,11 +102,13 @@ type PebbleApplication struct {
 	Website            string                   `json:"website"`
 	Source             string                   `json:"source"`
 	Screenshots        PebbleScreenshotImages   `json:"screenshot_images"`
+	Icons              PebbleIcons              `json:"icon_image"`
 	ScreenshotHardware string                   `json:"screenshot_hardware"`
 	HeaderImages       PebbleHeaderImages       `json:"header_images"`
 	Hearts             int                      `json:"hearts"`
 	Type               string                   `json:"type"`
 	Compatibility      PebbleCompatibility      `json:"compatibility"`
+	Changelog          []PebbleVersion          `json:"changelog"`
 }
 
 // PebbleApplicationRelease describes the `release` tag of a pebble JSON
@@ -100,6 +119,13 @@ type PebbleApplicationRelease struct {
 	Version   string   `json:"version"`
 }
 
+// PebbleVersion describes a version change
+type PebbleVersion struct {
+	Version   string   `json:"version"`
+	Published JSONTime `json:"published_date"`
+	Notes     string   `json:"release_notes"`
+}
+
 // PebbleCompatibility describes the `compatibility` tag of a pebble JSON
 type PebbleCompatibility struct {
 	Ios     PebbleCompatibilityBool `json:"ios"`
@@ -108,7 +134,6 @@ type PebbleCompatibility struct {
 	Basalt  PebbleCompatibilityBool `json:"basalt"`
 	Chalk   PebbleCompatibilityBool `json:"chalk"`
 	Diorite PebbleCompatibilityBool `json:"diorite"`
-	Emery   PebbleCompatibilityBool `json:"emery"`
 }
 
 // PebbleCompatibilityBool describes the contents of a `compatibility` tag of a pebble JSON
@@ -130,6 +155,9 @@ type PebbleHeaderImage struct {
 // PebbleScreenshotImage is used by PebbleHeaderImages to allow mixed contents
 type PebbleScreenshotImage map[string]string
 
+// PebbleIcons contains the icon at varying resolutions
+type PebbleIcons map[string]string
+
 // UnmarshalJSON for PebbleHeaderImages allows for mixed content
 func (phi *PebbleHeaderImages) UnmarshalJSON(b []byte) error {
 	if len(b) == 0 || b[0] == '"' {
@@ -150,16 +178,25 @@ func (psi *PebbleScreenshotImages) UnmarshalJSON(b []byte) error {
 	return json.Unmarshal(b, (*([]PebbleScreenshotImage))(psi))
 }
 
-func parseApp(path string, authors *map[string]int, lastAuthorId *int, categoriesNames, categoriesColors *map[string]string) *RebbleApplication {
+func (pi *PebbleIcons) UnmarshalJSON(b []byte) error {
+	if len(b) == 0 || b[0] == '"' {
+		*pi = make(map[string]string, 0)
+		return nil
+	}
+
+	return json.Unmarshal(b, (*(map[string]string))(pi))
+}
+
+func parseApp(path string, authors *map[string]int, lastAuthorId *int, collections *map[string]RebbleCollection) (*RebbleApplication, *[]RebbleVersion, error) {
 	f, err := ioutil.ReadFile(path)
 	if err != nil {
-		log.Fatal(err)
+		return nil, nil, err
 	}
 	var data = PebbleAppList{}
 
 	err = json.Unmarshal(f, &data)
 	if err != nil {
-		log.Fatal(err)
+		return nil, nil, err
 	}
 	if len(data.Apps) != 1 {
 		//log.Println(data)
@@ -173,14 +210,17 @@ func parseApp(path string, authors *map[string]int, lastAuthorId *int, categorie
 		*lastAuthorId = *lastAuthorId + 1
 	}
 
-	// Create category if it doesn't exist
-	if _, ok := (*categoriesNames)[data.Apps[0].CategoryId]; !ok {
-		(*categoriesNames)[data.Apps[0].CategoryId] = data.Apps[0].CategoryName
-		(*categoriesColors)[data.Apps[0].CategoryId] = data.Apps[0].CategoryColor
+	// Create collection if it doesn't exist
+	if _, ok := (*collections)[data.Apps[0].CategoryId]; !ok {
+		(*collections)[data.Apps[0].CategoryId] = RebbleCollection{
+			Id:    data.Apps[0].CategoryId,
+			Name:  data.Apps[0].CategoryName,
+			Color: data.Apps[0].CategoryColor,
+		}
 	}
 
 	app := RebbleApplication{}
-	app.AppInfo.Tags = make([]RebbleCategory, 1)
+	app.AppInfo.Tags = make([]RebbleCollection, 1)
 	screenshots := make(([]RebbleScreenshotsPlatform), 0)
 	app.Assets.Screenshots = &screenshots
 
@@ -202,9 +242,6 @@ func parseApp(path string, authors *map[string]int, lastAuthorId *int, categorie
 	}
 	if data.Apps[0].Compatibility.Diorite.Supported {
 		supportedPlatforms = append(supportedPlatforms, "diorite")
-	}
-	if data.Apps[0].Compatibility.Emery.Supported {
-		supportedPlatforms = append(supportedPlatforms, "emery")
 	}
 
 	app.Id = data.Apps[0].Id
@@ -230,7 +267,9 @@ func parseApp(path string, authors *map[string]int, lastAuthorId *int, categorie
 	} else {
 		app.Assets.Banner = ""
 	}
-	app.Assets.Icon = ""
+	if icon, ok := data.Apps[0].Icons["48x48"]; ok {
+		app.Assets.Icon = icon
+	}
 	screenshots = append(*app.Assets.Screenshots, RebbleScreenshotsPlatform{data.Apps[0].ScreenshotHardware, make([]string, 0)})
 	app.Assets.Screenshots = &screenshots
 	for _, screenshot := range data.Apps[0].Screenshots {
@@ -240,17 +279,26 @@ func parseApp(path string, authors *map[string]int, lastAuthorId *int, categorie
 	}
 	app.DoomsdayBackup = false
 
-	return &app
+	versions := make([]RebbleVersion, len(data.Apps[0].Changelog))
+	for i, pv := range data.Apps[0].Changelog {
+		versions[i].Number = pv.Version
+		versions[i].Description = pv.Notes
+		versions[i].ReleaseDate = pv.Published
+	}
+
+	return &app, &versions, nil
 }
 
 // HomeHandler is the index page.
-func HomeHandler(w http.ResponseWriter, r *http.Request) {
+func HomeHandler(ctx *handlerContext, w http.ResponseWriter, r *http.Request) (int, error) {
 	data, err := ioutil.ReadFile("static/home.html")
 	if err != nil {
-		log.Fatal("Could not read static/home.html")
+		return http.StatusInternalServerError, err
 	}
 
 	fmt.Fprintf(w, string(data))
+
+	return http.StatusOK, nil
 }
 
 func RecurseFolder(w http.ResponseWriter, path string, f os.FileInfo, lvl int) {
@@ -275,8 +323,6 @@ func RecurseFolder(w http.ResponseWriter, path string, f os.FileInfo, lvl int) {
 
 // AppsHandler lists all of the available applications from the backend DB.
 func AppsHandler(ctx *handlerContext, w http.ResponseWriter, r *http.Request) (int, error) {
-	WriteCommonHeaders(w)
-
 	db := ctx.db
 
 	rows, err := db.Query(`
@@ -327,12 +373,12 @@ func AppHandler(ctx *handlerContext, w http.ResponseWriter, r *http.Request) (in
 	app.Published.Time = time.Unix(0, t_published)
 	app.AppInfo.Updated.Time = time.Unix(0, t_updated)
 	json.Unmarshal(tagIds_b, &tagIds)
-	app.AppInfo.Tags = make([]RebbleCategory, len(tagIds))
+	app.AppInfo.Tags = make([]RebbleCollection, len(tagIds))
 	json.Unmarshal(screenshots_b, &screenshots)
 	app.Assets.Screenshots = screenshots
 
 	for i, tagId := range tagIds {
-		rows, err := db.Query("SELECT id, name, color FROM categories WHERE id=?", tagId)
+		rows, err := db.Query("SELECT id, name, color FROM collections WHERE id=?", tagId)
 		if err != nil {
 			return http.StatusInternalServerError, err
 		}
@@ -340,7 +386,7 @@ func AppHandler(ctx *handlerContext, w http.ResponseWriter, r *http.Request) (in
 		rows.Next()
 		err = rows.Scan(&app.AppInfo.Tags[i].Id, &app.AppInfo.Tags[i].Name, &app.AppInfo.Tags[i].Color)
 		if err != nil {
-			log.Fatal(err)
+			return http.StatusInternalServerError, err
 		}
 	}
 
@@ -355,8 +401,85 @@ func AppHandler(ctx *handlerContext, w http.ResponseWriter, r *http.Request) (in
 	return http.StatusOK, nil
 }
 
-func WriteCommonHeaders(w http.ResponseWriter) {
-	// http://stackoverflow.com/a/24818638
-	w.Header().Add("Access-Control-Allow-Origin", "http://docs.rebble.io")
-	w.Header().Add("Access-Control-Allow-Methods", "GET,POST")
+// TagsHandler returns the list of tags of a particular appliction as JSON
+func TagsHandler(ctx *handlerContext, w http.ResponseWriter, r *http.Request) (int, error) {
+	db := ctx.db
+
+	rows, err := db.Query("SELECT apps.tag_ids FROM apps")
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+	exists := rows.Next()
+	if !exists {
+		return http.StatusNotFound, errors.New("No app with this ID")
+	}
+
+	var tagIds_b []byte
+	var tagIds []string
+	err = rows.Scan(&tagIds_b)
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+	json.Unmarshal(tagIds_b, &tagIds)
+	tagList := RebbleTagList{}
+	tagList.Tags = make([]RebbleCollection, len(tagIds))
+
+	for i, tagId := range tagIds {
+		rows, err := db.Query("SELECT id, name, color FROM collections WHERE id=?", tagId)
+		if err != nil {
+			return http.StatusInternalServerError, err
+		}
+
+		rows.Next()
+		err = rows.Scan(&tagList.Tags[i].Id, &tagList.Tags[i].Name, &tagList.Tags[i].Color)
+		if err != nil {
+			return http.StatusInternalServerError, err
+		}
+	}
+
+	data, err := json.MarshalIndent(tagList, "", "\t")
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+
+	// Send the JSON object back to the user
+	w.Header().Add("content-type", "application/json")
+	w.Write(data)
+
+	return http.StatusOK, nil
+}
+
+// VersionsHandler returns the server version
+func VersionsHandler(ctx *handlerContext, w http.ResponseWriter, r *http.Request) (int, error) {
+	db := ctx.db
+
+	rows, err := db.Query("SELECT apps.versions FROM apps")
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+	exists := rows.Next()
+	if !exists {
+		return http.StatusNotFound, errors.New("No app with this ID")
+	}
+
+	var versions_b []byte
+	var versions []RebbleVersion
+	err = rows.Scan(&versions_b)
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+	json.Unmarshal(versions_b, &versions)
+	changelog := RebbleChangelog{}
+	changelog.Versions = versions
+
+	data, err := json.MarshalIndent(changelog, "", "\t")
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+
+	// Send the JSON object back to the user
+	w.Header().Add("content-type", "application/json")
+	w.Write(data)
+
+	return http.StatusOK, nil
 }
