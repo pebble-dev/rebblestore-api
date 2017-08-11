@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"pebble-dev/rebblestore-api/db"
 	"strconv"
 	"time"
 
@@ -128,7 +129,7 @@ func sortApps(apps *([]RebbleApplication), sortByPopular bool) *([]RebbleApplica
 
 // CollectionHandler serves a list of cards from a collection
 func CollectionHandler(ctx *handlerContext, w http.ResponseWriter, r *http.Request) (int, error) {
-	db := ctx.db
+	dbHandler := ctx.db
 
 	urlquery := r.URL.Query()
 
@@ -171,7 +172,7 @@ func CollectionHandler(ctx *handlerContext, w http.ResponseWriter, r *http.Reque
 		}
 	}
 
-	rows, err := db.Query("SELECT apps FROM collections WHERE id=?", mux.Vars(r)["id"])
+	rows, err := dbHandler.Query("SELECT apps FROM collections WHERE id=?", mux.Vars(r)["id"])
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
@@ -188,7 +189,7 @@ func CollectionHandler(ctx *handlerContext, w http.ResponseWriter, r *http.Reque
 
 	apps := make([]RebbleApplication, 0)
 	for _, id := range appIds {
-		rows, err = db.Query("SELECT id, name, type, thumbs_up, icon_url, published_date, supported_platforms FROM apps WHERE id=?", id)
+		rows, err = dbHandler.Query("SELECT id, name, type, thumbs_up, icon_url, published_date, supported_platforms FROM apps WHERE id=?", id)
 		if err != nil {
 			return http.StatusInternalServerError, err
 		}
@@ -210,9 +211,9 @@ func CollectionHandler(ctx *handlerContext, w http.ResponseWriter, r *http.Reque
 		apps = apps[(page-1)*12 : page*12]
 	}
 
-	var cards RebbleCards
+	var cards db.RebbleCards
 	for _, app := range apps {
-		cards.Cards = append(cards.Cards, RebbleCard{
+		cards.Cards = append(cards.Cards, db.RebbleCard{
 			Id:       app.Id,
 			Title:    app.Name,
 			Type:     app.Type,

@@ -1,4 +1,4 @@
-package main
+package db
 
 // RebbleCard contains succint information about an app, to display on a result page for example
 type RebbleCard struct {

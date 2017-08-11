@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"pebble-dev/rebblestore-api/db"
 	"strings"
 
 	"github.com/gorilla/mux"
@@ -11,8 +12,6 @@ import (
 
 // SearchHandler is the search page
 func SearchHandler(ctx *handlerContext, w http.ResponseWriter, r *http.Request) (int, error) {
-	db := ctx.db
-
 	if _, ok := mux.Vars(r)["query"]; !ok {
 		return http.StatusBadRequest, errors.New("Invalid parameter 'query'")
 	}
@@ -23,18 +22,10 @@ func SearchHandler(ctx *handlerContext, w http.ResponseWriter, r *http.Request) 
 	query = strings.Replace(query, "_", "!_", -1)
 	query = strings.Replace(query, "[", "![", -1)
 	query = "%" + query + "%"
-	rows, err := db.Query("SELECT id, name, type, thumbs_up, icon_url FROM apps WHERE name LIKE ? ESCAPE '!' ORDER BY thumbs_up DESC LIMIT 12", query)
+	var cards db.RebbleCards
+	cards, err := db.Search(ctx.db, query)
 	if err != nil {
 		return http.StatusInternalServerError, err
-	}
-
-	var cards RebbleCards
-	cards.Cards = make([]RebbleCard, 0)
-
-	for rows.Next() {
-		card := RebbleCard{}
-		err = rows.Scan(&card.Id, &card.Title, &card.Type, &card.ThumbsUp, &card.ImageUrl)
-		cards.Cards = append(cards.Cards, card)
 	}
 
 	data, err := json.MarshalIndent(cards, "", "\t")
