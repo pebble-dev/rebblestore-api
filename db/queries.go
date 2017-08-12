@@ -2,6 +2,8 @@ package db
 
 import (
 	"database/sql"
+	"encoding/json"
+	"errors"
 )
 
 // Search returns search results for applications
@@ -21,4 +23,23 @@ func Search(handler *sql.DB, query string) (RebbleCards, error) {
 		cards.Cards = append(cards.Cards, card)
 	}
 	return cards, nil
+}
+
+// GetAppsIDsForCollection returns list of apps for single collection
+func GetAppsIDsForCollection(handler *sql.DB, collectionID string) ([]string, error) {
+	rows, err := handler.Query("SELECT apps FROM collections WHERE id=?", collectionID)
+	if err != nil {
+		return nil, err
+	}
+	if !rows.Next() {
+		return nil, errors.New("Specified collection does not exist")
+	}
+	var appIdsB []byte
+	var appIds []string
+	err = rows.Scan(&appIdsB)
+	if err != nil {
+		return nil, err
+	}
+	json.Unmarshal(appIdsB, &appIds)
+	return appIds, nil
 }

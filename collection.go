@@ -172,20 +172,10 @@ func CollectionHandler(ctx *handlerContext, w http.ResponseWriter, r *http.Reque
 		}
 	}
 
-	rows, err := dbHandler.Query("SELECT apps FROM collections WHERE id=?", mux.Vars(r)["id"])
+	appIds, err = db.GetAppsIDsForCollection(ctx.db, mux.Vars(r)["id"])
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
-	if !rows.Next() {
-		return http.StatusInternalServerError, errors.New("Specified collection does not exist")
-	}
-	var appIds_b []byte
-	var appIds []string
-	err = rows.Scan(&appIds_b)
-	if err != nil {
-		return http.StatusInternalServerError, err
-	}
-	json.Unmarshal(appIds_b, &appIds)
 
 	apps := make([]RebbleApplication, 0)
 	for _, id := range appIds {
