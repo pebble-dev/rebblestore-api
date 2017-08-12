@@ -2,7 +2,7 @@
 /rebblestore-api-tests
 *.vim
 *.swp
-main.apib
+*.apib
 /build/
 /PebbleAppStore
 RebbleAppStore.db

@@ -10,6 +10,9 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pborman/getopt"
 	//rsapi "github.com/pebble-dev/rebblestore-api"
+
+	"pebble-dev/rebblestore-api/common"
+	"pebble-dev/rebblestore-api/rebbleHandlers"
 )
 
 func main() {
@@ -18,7 +21,7 @@ func main() {
 	getopt.Parse()
 	if version {
 		//fmt.Fprintf(os.Stderr, "Version %s\nBuild Host: %s\nBuild Date: %s\nBuild Hash: %s\n", rsapi.Buildversionstring, rsapi.Buildhost, rsapi.Buildstamp, rsapi.Buildgithash)
-		fmt.Fprintf(os.Stderr, "Version %s\nBuild Host: %s\nBuild Date: %s\nBuild Hash: %s\n", Buildversionstring, Buildhost, Buildstamp, Buildgithash)
+		fmt.Fprintf(os.Stderr, "Version %s\nBuild Host: %s\nBuild Date: %s\nBuild Hash: %s\n", common.Buildversionstring, common.Buildhost, common.Buildstamp, common.Buildgithash)
 		return
 	}
 
@@ -28,9 +31,9 @@ func main() {
 	}
 
 	// construct the context that will be injected in to handlers
-	context := &handlerContext{db}
+	context := &rebbleHandlers.HandlerContext{db}
 
-	r := Handlers(context)
+	r := rebbleHandlers.Handlers(context)
 	loggedRouter := handlers.LoggingHandler(os.Stdout, r)
 	http.Handle("/", r)
 	http.ListenAndServe(":8080", loggedRouter)
