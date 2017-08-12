@@ -26,10 +26,12 @@ func Handlers(context *HandlerContext) *mux.Router {
 	r.Handle("/dev/apps/get_collection/id/{id}", routeHandler{context, CollectionHandler}).Methods("GET")
 	r.Handle("/dev/apps/search/{query}", routeHandler{context, SearchHandler}).Methods("GET")
 	r.Handle("/admin/rebuild/db", routeHandler{context, AdminRebuildDBHandler}).Host("localhost")
+	r.Handle("/admin/rebuild/images", routeHandler{context, AdminRebuildImagesHandler}).Host("localhost")
 	r.Handle("/admin/version", routeHandler{context, AdminVersionHandler})
 	//r.HandleFunc("/boot/{path:.*}", BootHandler).Methods("GET")
 	// Added OS parameter
 	r.Handle("/boot/{os}/{path:.*}", routeHandler{context, BootHandler}).Methods("GET")
+	r.Handle("/images/{image}", routeHandler{context, ImagesHandler}).Methods("GET")
 
 	// The boot parameter wasn't working when set to /boot/ and this was used as
 	// an alternative. However, using the {path:.*} matching appears to have

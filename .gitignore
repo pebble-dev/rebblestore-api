@@ -5,6 +5,7 @@
 *.apib
 /build/
 /PebbleAppStore
+/PebbleImages
 RebbleAppStore.db
 
 # Compiled Object files, Static and Dynamic libs (Shared Objects)

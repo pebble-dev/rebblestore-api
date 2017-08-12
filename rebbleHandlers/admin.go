@@ -3,12 +3,15 @@ package rebbleHandlers
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/nu7hatch/gouuid"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -91,7 +94,7 @@ func AdminRebuildDBHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.R
 
 	// tag_ids and screenshot_urls are Marshaled arrays, hence the BLOB type.
 	sqlStmt := `
-			drop table apps;
+			drop table if exists apps;
 			create table apps (
 				id text not null primary key,
 				name text,
@@ -109,7 +112,7 @@ func AdminRebuildDBHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.R
 				support_url text,
 				author_url text,
 				source_url text,
-				screenshot_urls blob,
+				screenshots blob,
 				banner_url text,
 				icon_url text,
 				doomsday_backup integer,
@@ -124,7 +127,7 @@ func AdminRebuildDBHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.R
 
 	// Placeholder until we implement an actual author/developer system.
 	sqlStmt = `
-			drop table authors;
+			drop table if exists authors;
 			create table authors (
 				id text not null primary key,
 				name text
@@ -138,7 +141,7 @@ func AdminRebuildDBHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.R
 
 	// Placeholder until we implement an actual collections system.
 	sqlStmt = `
-			drop table collections;
+			drop table if exists collections;
 			create table collections (
 				id text not null primary key,
 				name text,
@@ -159,7 +162,7 @@ func AdminRebuildDBHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.R
 		return http.StatusInternalServerError, err
 	}
 
-	stmt, err := tx.Prepare("INSERT INTO apps(id, name, author_id, tag_ids, description, thumbs_up, type, supported_platforms, published_date, pbw_url, rebble_ready, updated, version, support_url, author_url, source_url, screenshot_urls, banner_url, icon_url, doomsday_backup, versions) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+	stmt, err := tx.Prepare("INSERT INTO apps(id, name, author_id, tag_ids, description, thumbs_up, type, supported_platforms, published_date, pbw_url, rebble_ready, updated, version, support_url, author_url, source_url, screenshots, banner_url, icon_url, doomsday_backup, versions) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
@@ -242,6 +245,126 @@ func AdminRebuildDBHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.R
 	tx.Commit()
 
 	log.Print("AppStore Database rebuilt successfully.")
+	return http.StatusOK, nil
+
+}
+
+// AdminRebuildImagesHandler allows an administrator to rebuild the images database from the application directory after hitting a single API end point.
+func AdminRebuildImagesHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Request) (int, error) {
+	db := ctx.Database
+
+	err := os.RemoveAll("PebbleImages")
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+	err = os.Mkdir("PebbleImages", 0755)
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+
+	rows, err := tx.Query("SELECT id, screenshots FROM apps")
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+
+	apps := make(map[string]RebbleApplication, 0)
+	urls := make([]string, 0)
+	for rows.Next() {
+		var id string
+		var screenshots_b []byte
+		var screenshots *([]RebbleScreenshotsPlatform)
+		err = rows.Scan(&id, &screenshots_b)
+		if err != nil {
+			return http.StatusInternalServerError, err
+		}
+
+		err = json.Unmarshal(screenshots_b, &screenshots)
+		if err != nil {
+			return http.StatusInternalServerError, err
+		}
+
+		platforms := make([]RebbleScreenshotsPlatform, 0)
+		apps[id] = RebbleApplication{
+			Id: id,
+			Assets: RebbleAssets{
+				Screenshots: &platforms,
+			},
+		}
+
+		for _, platform := range *screenshots {
+			newPlatform := RebbleScreenshotsPlatform{
+				Platform: platform.Platform,
+			}
+			errs := make([](chan error), 0)
+
+			for _, screenshot := range platform.Screenshots {
+				if in_array(screenshot, urls) {
+					continue
+				}
+
+				u, err := uuid.NewV4()
+				if err != nil {
+					return http.StatusInternalServerError, err
+				}
+
+				newPlatform.Screenshots = append(newPlatform.Screenshots, fmt.Sprintf("/images/%v", u.String()))
+				urls = append(urls, screenshot)
+
+				errs = append(errs, make(chan error))
+
+				go func(url string, id string, err chan error) {
+					log.Println("Downloading", url)
+					resp, e := http.Get(url)
+					if e != nil {
+						err <- e
+						return
+					}
+
+					out, e := os.Create(fmt.Sprintf("PebbleImages/%v", id))
+					if e != nil {
+						err <- e
+						return
+					}
+
+					defer resp.Body.Close()
+					_, e = io.Copy(out, resp.Body)
+
+					err <- e
+				}(screenshot, u.String(), errs[len(errs)-1])
+			}
+
+			for _, err := range errs {
+				e := <-err
+				if e != nil {
+					return http.StatusInternalServerError, e
+				}
+			}
+
+			if len(newPlatform.Screenshots) > 0 {
+				platforms = append(platforms, newPlatform)
+			}
+		}
+	}
+
+	for id, app := range apps {
+		screenshots, err := json.Marshal(*app.Assets.Screenshots)
+		if err != nil {
+			return http.StatusInternalServerError, err
+		}
+		_, err = tx.Exec("UPDATE apps SET screenshots=? WHERE id=?", screenshots, id)
+		if err != nil {
+			return http.StatusInternalServerError, err
+		}
+	}
+
+	tx.Commit()
+
+	log.Print("AppStore Image Database rebuilt successfully.")
 	return http.StatusOK, nil
 
 }
