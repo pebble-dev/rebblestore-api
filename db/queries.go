@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"time"
 )
 
 // Search returns search results for applications
@@ -25,8 +26,8 @@ func Search(handler *sql.DB, query string) (RebbleCards, error) {
 	return cards, nil
 }
 
-// GetAppsIDsForCollection returns list of apps for single collection
-func GetAppsIDsForCollection(handler *sql.DB, collectionID string) ([]string, error) {
+// GetAppsForCollection returns list of apps for single collection
+func GetAppsForCollection(handler *sql.DB, collectionID string) ([]RebbleApplication, error) {
 	rows, err := handler.Query("SELECT apps FROM collections WHERE id=?", collectionID)
 	if err != nil {
 		return nil, err
@@ -41,5 +42,23 @@ func GetAppsIDsForCollection(handler *sql.DB, collectionID string) ([]string, er
 		return nil, err
 	}
 	json.Unmarshal(appIdsB, &appIds)
-	return appIds, nil
+
+	apps := make([]RebbleApplication, 0)
+	for _, id := range appIds {
+		rows, err = handler.Query("SELECT id, name, type, thumbs_up, icon_url, published_date, supported_platforms FROM apps WHERE id=?", id)
+		if err != nil {
+			return nil, err
+		}
+
+		for rows.Next() {
+			app := RebbleApplication{}
+			var t int64
+			var supported_platforms_b []byte
+			err = rows.Scan(&app.Id, &app.Name, &app.Type, &app.ThumbsUp, &app.Assets.Icon, &t, &supported_platforms_b)
+			app.Published.Time = time.Unix(0, t)
+			err = json.Unmarshal(supported_platforms_b, &app.SupportedPlatforms)
+			apps = append(apps, app)
+		}
+	}
+	return apps, nil
 }

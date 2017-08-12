@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"pebble-dev/rebblestore-api/db"
 	"strings"
-	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -43,31 +43,6 @@ func walkFiles(root string) (<-chan string, <-chan error) {
 	return paths, errf
 }
 
-// JSONTime is a dummy time object that is meant to allow Go's JSON module to
-// properly de-serialize the JSON time format.
-type JSONTime struct {
-	time.Time
-}
-
-// UnmarshalJSON allows for the custom time format within the application JSON
-// to be decoded into Go's native time format.
-func (self *JSONTime) UnmarshalJSON(b []byte) (err error) {
-	s := string(b)
-
-	// Return an empty time.Time object if it didn't exist in the first place.
-	if s == "null" {
-		self.Time = time.Time{}
-		return
-	}
-
-	t, err := time.Parse("\"2006-01-02T15:04:05.999Z\"", s)
-	if err != nil {
-		t = time.Time{}
-	}
-	self.Time = t
-	return
-}
-
 // AdminRebuildDBHandler allows an administrator to rebuild the database from
 // the application directory after hitting a single API end point.
 func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.Request) (int, error) {
@@ -87,7 +62,7 @@ func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.R
 	//return /*
 	//db.Close()
 
-	db := ctx.db
+	dbHandler := ctx.db
 
 	// tag_ids and screenshot_urls are Marshaled arrays, hence the BLOB type.
 	sqlStmt := `
@@ -117,7 +92,7 @@ func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.R
 			);
 			delete from apps;
 		`
-	_, err := db.Exec(sqlStmt)
+	_, err := dbHandler.Exec(sqlStmt)
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
@@ -131,7 +106,7 @@ func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.R
 			);
 			delete from authors;
 		`
-	_, err = db.Exec(sqlStmt)
+	_, err = dbHandler.Exec(sqlStmt)
 	if err != nil {
 		return http.StatusInternalServerError, fmt.Errorf("%q: %s", err, sqlStmt)
 	}
@@ -149,12 +124,12 @@ func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.R
 			);
 			delete from collections;
 		`
-	_, err = db.Exec(sqlStmt)
+	_, err = dbHandler.Exec(sqlStmt)
 	if err != nil {
 		return http.StatusInternalServerError, fmt.Errorf("%q: %s", err, sqlStmt)
 	}
 
-	tx, err := db.Begin()
+	tx, err := dbHandler.Begin()
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
@@ -166,11 +141,11 @@ func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.R
 	defer stmt.Close()
 
 	authors := make(map[string]int)
-	collections := make(map[string]RebbleCollection)
+	collections := make(map[string]db.RebbleCollection)
 	lastAuthorId := 0
 	path, errc := walkFiles("PebbleAppStore/")
-	apps := make(map[string]RebbleApplication)
-	versions := make(map[string]([]RebbleVersion))
+	apps := make(map[string]db.RebbleApplication)
+	versions := make(map[string]([]db.RebbleVersion))
 	for item := range path {
 		app, v, err := parseApp(item, &authors, &lastAuthorId, &collections)
 		if err != nil {
