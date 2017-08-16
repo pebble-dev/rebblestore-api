@@ -23,7 +23,7 @@ func SearchHandler(ctx *handlerContext, w http.ResponseWriter, r *http.Request) 
 	query = strings.Replace(query, "[", "![", -1)
 	query = "%" + query + "%"
 	var cards db.RebbleCards
-	cards, err := db.Search(ctx.db, query)
+	cards, err := ctx.db.Search(query)
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}

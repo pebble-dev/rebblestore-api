@@ -7,8 +7,13 @@ import (
 	"time"
 )
 
+// Handler contains reference to the database client
+type Handler struct {
+	*sql.DB
+}
+
 // Search returns search results for applications
-func Search(handler *sql.DB, query string) (RebbleCards, error) {
+func (handler Handler) Search(query string) (RebbleCards, error) {
 	var cards RebbleCards
 	rows, err := handler.Query(
 		"SELECT id, name, type, thumbs_up, icon_url FROM apps WHERE name LIKE ? ESCAPE '!' ORDER BY thumbs_up DESC LIMIT 12",
@@ -27,7 +32,7 @@ func Search(handler *sql.DB, query string) (RebbleCards, error) {
 }
 
 // GetAppsForCollection returns list of apps for single collection
-func GetAppsForCollection(handler *sql.DB, collectionID string) ([]RebbleApplication, error) {
+func (handler Handler) GetAppsForCollection(collectionID string) ([]RebbleApplication, error) {
 	rows, err := handler.Query("SELECT apps FROM collections WHERE id=?", collectionID)
 	if err != nil {
 		return nil, err
@@ -64,7 +69,7 @@ func GetAppsForCollection(handler *sql.DB, collectionID string) ([]RebbleApplica
 }
 
 // GetApps returns all available apps
-func GetApps(handler *sql.DB) ([]RebbleApplication, error) {
+func (handler Handler) GetApps() ([]RebbleApplication, error) {
 	rows, err := handler.Query(`
 		SELECT apps.name, authors.name
 		FROM apps

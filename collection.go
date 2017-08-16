@@ -169,7 +169,7 @@ func CollectionHandler(ctx *handlerContext, w http.ResponseWriter, r *http.Reque
 		}
 	}
 
-	apps, err := db.GetAppsForCollection(ctx.db, mux.Vars(r)["id"])
+	apps, err := ctx.db.GetAppsForCollection(mux.Vars(r)["id"])
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}

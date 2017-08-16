@@ -1,15 +1,15 @@
 package main
 
 import (
-	"database/sql"
 	"log"
 	"net/http"
+	"pebble-dev/rebblestore-api/db"
 )
 
 // handlerContext is our struct for storing the data we want to inject in to each handler
 // we can also add things like authorization level, user information, templates, etc.
 type handlerContext struct {
-	db *sql.DB
+	db *db.Handler
 }
 
 // routeHandler is a struct that implements http.Handler, allowing us to inject a custom context

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"pebble-dev/rebblestore-api/db"
 
 	"github.com/gorilla/handlers"
 	_ "github.com/mattn/go-sqlite3"
@@ -22,13 +23,15 @@ func main() {
 		return
 	}
 
-	db, err := sql.Open("sqlite3", "./RebbleAppStore.db")
+	database, err := sql.Open("sqlite3", "./RebbleAppStore.db")
 	if err != nil {
 		panic("Could not connect to database" + err.Error())
 	}
 
+	dbHandler := db.Handler{database}
+
 	// construct the context that will be injected in to handlers
-	context := &handlerContext{db}
+	context := &handlerContext{&dbHandler}
 
 	r := Handlers(context)
 	loggedRouter := handlers.LoggingHandler(os.Stdout, r)

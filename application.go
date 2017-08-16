@@ -262,7 +262,7 @@ func RecurseFolder(w http.ResponseWriter, path string, f os.FileInfo, lvl int) {
 
 // AppsHandler lists all of the available applications from the backend DB.
 func AppsHandler(ctx *handlerContext, w http.ResponseWriter, r *http.Request) (int, error) {
-	apps, err := db.GetApps(ctx.db)
+	apps, err := ctx.db.GetApps()
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
