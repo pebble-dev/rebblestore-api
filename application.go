@@ -260,28 +260,15 @@ func RecurseFolder(w http.ResponseWriter, path string, f os.FileInfo, lvl int) {
 	}
 }
 
-//var db *sql.DB
-
 // AppsHandler lists all of the available applications from the backend DB.
 func AppsHandler(ctx *handlerContext, w http.ResponseWriter, r *http.Request) (int, error) {
-	dbHandler := ctx.db
-
-	rows, err := dbHandler.Query(`
-			SELECT apps.name, authors.name
-			FROM apps
-			JOIN authors ON apps.author_id = authors.id
-			ORDER BY published_date ASC LIMIT 20
-	`)
+	apps, err := db.GetApps(ctx.db)
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
-
-	for rows.Next() {
-		item := db.RebbleApplication{}
-		err = rows.Scan(&item.Name, &item.Author.Name)
-		fmt.Fprintf(w, "Item: %s\n Author: %s\n\n", item.Name, item.Author.Name)
+	for _, app := range apps {
+		fmt.Fprintf(w, "Item: %s\n Author: %s\n\n", app.Name, app.Author.Name)
 	}
-
 	return http.StatusOK, nil
 }
 
@@ -318,8 +305,8 @@ func AppHandler(ctx *handlerContext, w http.ResponseWriter, r *http.Request) (in
 	json.Unmarshal(screenshots_b, &screenshots)
 	app.Assets.Screenshots = screenshots
 
-	for i, tagId := range tagIds {
-		rows, err := dbHandler.Query("SELECT id, name, color FROM collections WHERE id=?", tagId)
+	for i, tagID := range tagIds {
+		rows, err := dbHandler.Query("SELECT id, name, color FROM collections WHERE id=?", tagID)
 		if err != nil {
 			return http.StatusInternalServerError, err
 		}

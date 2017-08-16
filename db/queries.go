@@ -62,3 +62,28 @@ func GetAppsForCollection(handler *sql.DB, collectionID string) ([]RebbleApplica
 	}
 	return apps, nil
 }
+
+// GetApps returns all available apps
+func GetApps(handler *sql.DB) ([]RebbleApplication, error) {
+	rows, err := handler.Query(`
+		SELECT apps.name, authors.name
+		FROM apps
+		JOIN authors ON apps.author_id = authors.id
+		ORDER BY published_date ASC LIMIT 20
+	`)
+	if err != nil {
+		return nil, err
+	}
+	apps := make([]RebbleApplication, 0)
+	for rows.Next() {
+		app := RebbleApplication{}
+		err = rows.Scan(&app.Name, &app.Author.Name)
+		apps = append(apps, app)
+	}
+	return apps, nil
+}
+
+// GetApp
+// func GetApp(handler *sql.DB, id string) (RebbleApplication, error) {
+// 	return nil, nil
+// }
