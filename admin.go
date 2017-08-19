@@ -91,7 +91,7 @@ func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.R
 
 	// tag_ids and screenshot_urls are Marshaled arrays, hence the BLOB type.
 	sqlStmt := `
-			drop table apps;
+			drop table if exists apps;
 			create table apps (
 				id text not null primary key,
 				name text,
@@ -124,7 +124,7 @@ func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.R
 
 	// Placeholder until we implement an actual author/developer system.
 	sqlStmt = `
-			drop table authors;
+			drop table if exists authors;
 			create table authors (
 				id text not null primary key,
 				name text
@@ -138,7 +138,7 @@ func AdminRebuildDBHandler(ctx *handlerContext, w http.ResponseWriter, r *http.R
 
 	// Placeholder until we implement an actual collections system.
 	sqlStmt = `
-			drop table collections;
+			drop table if exists collections;
 			create table collections (
 				id text not null primary key,
 				name text,
