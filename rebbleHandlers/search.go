@@ -24,7 +24,7 @@ func SearchHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Request) 
 	query = strings.Replace(query, "_", "!_", -1)
 	query = strings.Replace(query, "[", "![", -1)
 	query = "%" + query + "%"
-	rows, err := db.Query("SELECT id, name, type, thumbs_up, icon_url FROM apps WHERE name LIKE ? ESCAPE '!' ORDER BY thumbs_up DESC LIMIT 12", query)
+	rows, err := db.Query("SELECT id, name, type, thumbs_up, screenshots FROM apps WHERE name LIKE ? ESCAPE '!' ORDER BY thumbs_up DESC LIMIT 12", query)
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
@@ -34,7 +34,19 @@ func SearchHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Request) 
 
 	for rows.Next() {
 		card := models.RebbleCard{}
-		err = rows.Scan(&card.Id, &card.Title, &card.Type, &card.ThumbsUp, &card.ImageUrl)
+		var screenshots_b []byte
+		var screenshots []RebbleScreenshotsPlatform
+		err = rows.Scan(&card.Id, &card.Title, &card.Type, &card.ThumbsUp, &screenshots_b)
+		if err != nil {
+			return http.StatusInternalServerError, err
+		}
+		err = json.Unmarshal(screenshots_b, &screenshots)
+		if err != nil {
+			return http.StatusInternalServerError, err
+		}
+		if len(screenshots) != 0 && len(screenshots[0].Screenshots) != 0 {
+			card.ImageUrl = screenshots[0].Screenshots[0]
+		}
 		cards.Cards = append(cards.Cards, card)
 	}
 

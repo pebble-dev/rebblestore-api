@@ -189,7 +189,7 @@ func CollectionHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Reque
 
 	apps := make([]RebbleApplication, 0)
 	for _, id := range appIds {
-		rows, err = db.Query("SELECT id, name, type, thumbs_up, icon_url, published_date, supported_platforms FROM apps WHERE id=?", id)
+		rows, err = db.Query("SELECT id, name, type, thumbs_up, screenshots, published_date, supported_platforms FROM apps WHERE id=?", id)
 		if err != nil {
 			return http.StatusInternalServerError, err
 		}
@@ -198,9 +198,20 @@ func CollectionHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Reque
 			app := RebbleApplication{}
 			var t int64
 			var supported_platforms_b []byte
-			err = rows.Scan(&app.Id, &app.Name, &app.Type, &app.ThumbsUp, &app.Assets.Icon, &t, &supported_platforms_b)
+			var screenshots_b []byte
+			err = rows.Scan(&app.Id, &app.Name, &app.Type, &app.ThumbsUp, &screenshots_b, &t, &supported_platforms_b)
+			if err != nil {
+				return http.StatusInternalServerError, err
+			}
 			app.Published.Time = time.Unix(0, t)
 			err = json.Unmarshal(supported_platforms_b, &app.SupportedPlatforms)
+			if err != nil {
+				return http.StatusInternalServerError, err
+			}
+			err = json.Unmarshal(screenshots_b, &app.Assets.Screenshots)
+			if err != nil {
+				return http.StatusInternalServerError, err
+			}
 			apps = append(apps, app)
 		}
 	}
@@ -213,11 +224,16 @@ func CollectionHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Reque
 
 	var cards models.RebbleCards
 	for _, app := range apps {
+		image := ""
+		if len(*app.Assets.Screenshots) != 0 && len((*app.Assets.Screenshots)[0].Screenshots) != 0 {
+			image = (*app.Assets.Screenshots)[0].Screenshots[0]
+		}
+
 		cards.Cards = append(cards.Cards, models.RebbleCard{
 			Id:       app.Id,
 			Title:    app.Name,
 			Type:     app.Type,
-			ImageUrl: app.Assets.Icon,
+			ImageUrl: image,
 			ThumbsUp: app.ThumbsUp,
 		})
 	}
