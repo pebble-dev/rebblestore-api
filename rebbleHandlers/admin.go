@@ -181,7 +181,16 @@ func AdminRebuildDBHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.R
 		}
 
 		if _, ok := apps[app.Id]; ok {
-			(*apps[app.Id].Assets.Screenshots) = append((*apps[app.Id].Assets.Screenshots), (*app.Assets.Screenshots)[0])
+			platformExists := false
+			for _, platform := range *apps[app.Id].Assets.Screenshots {
+				if platform.Platform == (*app.Assets.Screenshots)[0].Platform {
+					platformExists = true
+				}
+			}
+
+			if !platformExists {
+				(*apps[app.Id].Assets.Screenshots) = append((*apps[app.Id].Assets.Screenshots), (*app.Assets.Screenshots)[0])
+			}
 		} else {
 			apps[app.Id] = *app
 			versions[app.Id] = *v
