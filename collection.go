@@ -4,15 +4,15 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"pebble-dev/rebblestore-api/db"
 	"strconv"
-	"time"
 
 	"github.com/gorilla/mux"
 )
 
-func insert(apps *([]RebbleApplication), location int, app RebbleApplication) *([]RebbleApplication) {
+func insert(apps *([]db.RebbleApplication), location int, app db.RebbleApplication) *([]db.RebbleApplication) {
 	beggining := (*apps)[:location]
-	end := make([]RebbleApplication, len(*apps)-len(beggining))
+	end := make([]db.RebbleApplication, len(*apps)-len(beggining))
 	copy(end, (*apps)[location:])
 	beggining = append(beggining, app)
 	beggining = append(beggining, end...)
@@ -20,8 +20,8 @@ func insert(apps *([]RebbleApplication), location int, app RebbleApplication) *(
 	return &beggining
 }
 
-func remove(apps *([]RebbleApplication), location int) *([]RebbleApplication) {
-	new := make([]RebbleApplication, location)
+func remove(apps *([]db.RebbleApplication), location int) *([]db.RebbleApplication) {
+	new := make([]db.RebbleApplication, location)
 	copy(new, (*apps)[:location])
 	new = append(new, (*apps)[location+1:]...)
 
@@ -38,8 +38,8 @@ func in_array(s string, array []string) bool {
 	return false
 }
 
-func bestApps(apps *([]RebbleApplication), sortByPopular bool, nApps int, platform string) *([]RebbleApplication) {
-	newApps := make([]RebbleApplication, 0)
+func bestApps(apps *([]db.RebbleApplication), sortByPopular bool, nApps int, platform string) *([]db.RebbleApplication) {
+	newApps := make([]db.RebbleApplication, 0)
 
 	for _, app := range *apps {
 		if platform == "all" || in_array(platform, app.SupportedPlatforms) {
@@ -70,26 +70,26 @@ func bestApps(apps *([]RebbleApplication), sortByPopular bool, nApps int, platfo
 	return &newApps
 }
 
-func sortApps(apps *([]RebbleApplication), sortByPopular bool) *([]RebbleApplication) {
-	newApps := make([]RebbleApplication, 0)
+func sortApps(apps *([]db.RebbleApplication), sortByPopular bool) *([]db.RebbleApplication) {
+	newApps := make([]db.RebbleApplication, 0)
 
 	for _, app := range *apps {
 		if len(newApps) == 0 {
-			newApps = []RebbleApplication{app}
+			newApps = []db.RebbleApplication{app}
 
 			continue
 		} else if len(newApps) == 1 {
 			if sortByPopular {
 				if newApps[0].ThumbsUp > app.ThumbsUp {
-					newApps = []RebbleApplication{newApps[0], app}
+					newApps = []db.RebbleApplication{newApps[0], app}
 				} else {
-					newApps = []RebbleApplication{app, newApps[0]}
+					newApps = []db.RebbleApplication{app, newApps[0]}
 				}
 			} else {
 				if newApps[0].Published.UnixNano() > app.Published.UnixNano() {
-					newApps = []RebbleApplication{app, newApps[0]}
+					newApps = []db.RebbleApplication{app, newApps[0]}
 				} else {
-					newApps = []RebbleApplication{newApps[0], app}
+					newApps = []db.RebbleApplication{newApps[0], app}
 				}
 			}
 
@@ -128,8 +128,6 @@ func sortApps(apps *([]RebbleApplication), sortByPopular bool) *([]RebbleApplica
 
 // CollectionHandler serves a list of cards from a collection
 func CollectionHandler(ctx *handlerContext, w http.ResponseWriter, r *http.Request) (int, error) {
-	db := ctx.db
-
 	urlquery := r.URL.Query()
 
 	if _, ok := mux.Vars(r)["id"]; !ok {
@@ -171,37 +169,9 @@ func CollectionHandler(ctx *handlerContext, w http.ResponseWriter, r *http.Reque
 		}
 	}
 
-	rows, err := db.Query("SELECT apps FROM collections WHERE id=?", mux.Vars(r)["id"])
+	apps, err := ctx.db.GetAppsForCollection(mux.Vars(r)["id"])
 	if err != nil {
 		return http.StatusInternalServerError, err
-	}
-	if !rows.Next() {
-		return http.StatusInternalServerError, errors.New("Specified collection does not exist")
-	}
-	var appIds_b []byte
-	var appIds []string
-	err = rows.Scan(&appIds_b)
-	if err != nil {
-		return http.StatusInternalServerError, err
-	}
-	json.Unmarshal(appIds_b, &appIds)
-
-	apps := make([]RebbleApplication, 0)
-	for _, id := range appIds {
-		rows, err = db.Query("SELECT id, name, type, thumbs_up, icon_url, published_date, supported_platforms FROM apps WHERE id=?", id)
-		if err != nil {
-			return http.StatusInternalServerError, err
-		}
-
-		for rows.Next() {
-			app := RebbleApplication{}
-			var t int64
-			var supported_platforms_b []byte
-			err = rows.Scan(&app.Id, &app.Name, &app.Type, &app.ThumbsUp, &app.Assets.Icon, &t, &supported_platforms_b)
-			app.Published.Time = time.Unix(0, t)
-			err = json.Unmarshal(supported_platforms_b, &app.SupportedPlatforms)
-			apps = append(apps, app)
-		}
 	}
 
 	apps = *(bestApps(&apps, sortByPopular, page*12, platform))
@@ -210,9 +180,9 @@ func CollectionHandler(ctx *handlerContext, w http.ResponseWriter, r *http.Reque
 		apps = apps[(page-1)*12 : page*12]
 	}
 
-	var cards RebbleCards
+	var cards db.RebbleCards
 	for _, app := range apps {
-		cards.Cards = append(cards.Cards, RebbleCard{
+		cards.Cards = append(cards.Cards, db.RebbleCard{
 			Id:       app.Id,
 			Title:    app.Name,
 			Type:     app.Type,

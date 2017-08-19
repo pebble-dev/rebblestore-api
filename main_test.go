@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"os"
+	"pebble-dev/rebblestore-api/db"
 	"testing"
 
 	"github.com/adams-sarah/test2doc/test"
@@ -16,12 +17,13 @@ var server *test.Server
 func TestMain(m *testing.M) {
 	var err error
 
-	db, err := sql.Open("sqlite3", "./foo_test.db")
+	database, err := sql.Open("sqlite3", "./RebbleAppStore.db")
 	if err != nil {
 		panic("Could not connect to database" + err.Error())
 	}
 
-	context := &handlerContext{db}
+	dbHandler := db.Handler{database}
+	context := &handlerContext{&dbHandler}
 
 	var r = Handlers(context)
 	r.KeepContext = true
