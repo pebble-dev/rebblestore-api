@@ -2,14 +2,12 @@ package rebbleHandlers
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"pebble-dev/rebblestore-api/db"
-	"time"
 
 	"github.com/gorilla/mux"
 )
@@ -250,7 +248,7 @@ func RecurseFolder(w http.ResponseWriter, path string, f os.FileInfo, lvl int) {
 
 // AppsHandler lists all of the available applications from the backend DB.
 func AppsHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Request) (int, error) {
-	apps, err := ctx.Database.GetApps()
+	apps, err := ctx.Database.GetAllApps()
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
@@ -262,53 +260,14 @@ func AppsHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Request) (i
 
 // AppHandler returns a particular application from the backend DB as JSON
 func AppHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Request) (int, error) {
-	dbHandler := ctx.Database
-
-	rows, err := dbHandler.Query("SELECT apps.id, apps.name, apps.author_id, authors.name, apps.tag_ids, apps.description, apps.thumbs_up, apps.type, apps.supported_platforms, apps.published_date, apps.pbw_url, apps.rebble_ready, apps.updated, apps.version, apps.support_url, apps.author_url, apps.source_url, apps.screenshots, apps.banner_url, apps.icon_url, apps.doomsday_backup FROM apps JOIN authors ON apps.author_id = authors.id WHERE apps.id=?", mux.Vars(r)["id"])
+	app, err := ctx.Database.GetApp(mux.Vars(r)["id"])
 	if err != nil {
 		return http.StatusInternalServerError, err
-	}
-
-	exists := rows.Next()
-	if !exists {
-		return http.StatusNotFound, errors.New("No application with this ID")
-	}
-
-	app := db.RebbleApplication{}
-	var supportedPlatforms_b []byte
-	var t_published, t_updated int64
-	var tagIds_b []byte
-	var tagIds []string
-	var screenshots_b []byte
-	var screenshots *([]db.RebbleScreenshotsPlatform)
-	err = rows.Scan(&app.Id, &app.Name, &app.Author.Id, &app.Author.Name, &tagIds_b, &app.Description, &app.ThumbsUp, &app.Type, &supportedPlatforms_b, &t_published, &app.AppInfo.PbwUrl, &app.AppInfo.RebbleReady, &t_updated, &app.AppInfo.Version, &app.AppInfo.SupportUrl, &app.AppInfo.AuthorUrl, &app.AppInfo.SourceUrl, &screenshots_b, &app.Assets.Banner, &app.Assets.Icon, &app.DoomsdayBackup)
-	if err != nil {
-		return http.StatusInternalServerError, err
-	}
-	json.Unmarshal(supportedPlatforms_b, &app.SupportedPlatforms)
-	app.Published.Time = time.Unix(0, t_published)
-	app.AppInfo.Updated.Time = time.Unix(0, t_updated)
-	json.Unmarshal(tagIds_b, &tagIds)
-	app.AppInfo.Tags = make([]db.RebbleCollection, len(tagIds))
-	json.Unmarshal(screenshots_b, &screenshots)
-	app.Assets.Screenshots = screenshots
-
-	for i, tagID := range tagIds {
-		rows, err := dbHandler.Query("SELECT id, name, color FROM collections WHERE id=?", tagID)
-		if err != nil {
-			return http.StatusInternalServerError, err
-		}
-
-		rows.Next()
-		err = rows.Scan(&app.AppInfo.Tags[i].Id, &app.AppInfo.Tags[i].Name, &app.AppInfo.Tags[i].Color)
-		if err != nil {
-			return http.StatusInternalServerError, err
-		}
 	}
 
 	data, err := json.MarshalIndent(app, "", "\t")
 	if err != nil {
-		return 500, err
+		return http.StatusInternalServerError, err
 	}
 
 	// Send the JSON object back to the user
@@ -319,38 +278,13 @@ func AppHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Request) (in
 
 // TagsHandler returns the list of tags of a particular appliction as JSON
 func TagsHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Request) (int, error) {
-	dbHandler := ctx.Database
-
-	rows, err := dbHandler.Query("SELECT apps.tag_ids FROM apps")
+	collections, err := ctx.Database.GetAppTags(mux.Vars(r)["id"])
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
-	exists := rows.Next()
-	if !exists {
-		return http.StatusNotFound, errors.New("No app with this ID")
-	}
 
-	var tagIds_b []byte
-	var tagIds []string
-	err = rows.Scan(&tagIds_b)
-	if err != nil {
-		return http.StatusInternalServerError, err
-	}
-	json.Unmarshal(tagIds_b, &tagIds)
-	tagList := RebbleTagList{}
-	tagList.Tags = make([]db.RebbleCollection, len(tagIds))
-
-	for i, tagId := range tagIds {
-		rows, err := dbHandler.Query("SELECT id, name, color FROM collections WHERE id=?", tagId)
-		if err != nil {
-			return http.StatusInternalServerError, err
-		}
-
-		rows.Next()
-		err = rows.Scan(&tagList.Tags[i].Id, &tagList.Tags[i].Name, &tagList.Tags[i].Color)
-		if err != nil {
-			return http.StatusInternalServerError, err
-		}
+	tagList := RebbleTagList{
+		Tags: collections,
 	}
 
 	data, err := json.MarshalIndent(tagList, "", "\t")
@@ -367,24 +301,8 @@ func TagsHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Request) (i
 
 // VersionsHandler returns the server version
 func VersionsHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Request) (int, error) {
-	dbHandler := ctx.Database
+	versions, err := ctx.Database.GetAppVersions(mux.Vars(r)["id"])
 
-	rows, err := dbHandler.Query("SELECT apps.versions FROM apps WHERE id=?", mux.Vars(r)["id"])
-	if err != nil {
-		return http.StatusInternalServerError, err
-	}
-	exists := rows.Next()
-	if !exists {
-		return http.StatusNotFound, errors.New("No app with this ID")
-	}
-
-	var versions_b []byte
-	var versions []db.RebbleVersion
-	err = rows.Scan(&versions_b)
-	if err != nil {
-		return http.StatusInternalServerError, err
-	}
-	json.Unmarshal(versions_b, &versions)
 	changelog := RebbleChangelog{}
 	changelog.Versions = versions
 
