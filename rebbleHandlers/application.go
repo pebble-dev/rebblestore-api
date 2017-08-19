@@ -441,7 +441,7 @@ func TagsHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Request) (i
 func VersionsHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Request) (int, error) {
 	db := ctx.Database
 
-	rows, err := db.Query("SELECT apps.versions FROM apps")
+	rows, err := db.Query("SELECT apps.versions FROM apps WHERE id=?", mux.Vars(r)["id"])
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
