@@ -18,7 +18,9 @@ import (
 
 func main() {
 	var version bool
+	rebbleHandlers.StoreUrl = "http://docs.rebble.io"
 	getopt.BoolVarLong(&version, "version", 'V', "Get the current version info")
+	getopt.StringVarLong(&rebbleHandlers.StoreUrl, "store-url", 'u', "Set the store URL (defaults to http://docs.rebble.io)")
 	getopt.Parse()
 	if version {
 		//fmt.Fprintf(os.Stderr, "Version %s\nBuild Host: %s\nBuild Date: %s\nBuild Hash: %s\n", rsapi.Buildversionstring, rsapi.Buildhost, rsapi.Buildstamp, rsapi.Buildgithash)

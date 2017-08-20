@@ -21,10 +21,13 @@ type routeHandler struct {
 	H       func(*HandlerContext, http.ResponseWriter, *http.Request) (int, error)
 }
 
+// StoreUrl contains the URL of the frontend for the Access-Control-Allow-Origin header
+var StoreUrl string
+
 func (rh routeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Write common headers
 	// http://stackoverflow.com/a/24818638
-	w.Header().Add("Access-Control-Allow-Origin", "http://docs.rebble.io")
+	w.Header().Add("Access-Control-Allow-Origin", StoreUrl)
 	w.Header().Add("Access-Control-Allow-Methods", "GET,POST")
 
 	// we can process user verification/auth token parsing and authorization here
