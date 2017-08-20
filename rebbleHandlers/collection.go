@@ -10,6 +10,13 @@ import (
 	"github.com/gorilla/mux"
 )
 
+type RebbleCollection struct {
+	Id    string          `json:"id"`
+	Name  string          `json:"name"`
+	Pages int             `json:"pages"`
+	Cards []db.RebbleCard `json:"cards"`
+}
+
 func insert(apps *([]db.RebbleApplication), location int, app db.RebbleApplication) *([]db.RebbleApplication) {
 	beggining := (*apps)[:location]
 	end := make([]db.RebbleApplication, len(*apps)-len(beggining))
@@ -36,6 +43,17 @@ func in_array(s string, array []string) bool {
 	}
 
 	return false
+}
+
+func nCompatibleApps(apps *([]db.RebbleApplication), platform string) int {
+	var n int
+	for _, app := range *apps {
+		if platform == "all" || in_array(platform, app.SupportedPlatforms) {
+			n = n + 1
+		}
+	}
+
+	return n
 }
 
 func bestApps(apps *([]db.RebbleApplication), sortByPopular bool, nApps int, platform string) *([]db.RebbleApplication) {
@@ -173,21 +191,47 @@ func CollectionHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Reque
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
-
+	nCompatibleApps := nCompatibleApps(&apps, platform)
 	apps = *(bestApps(&apps, sortByPopular, page*12, platform))
 	apps = *(sortApps(&apps, sortByPopular))
-	if page != 1 {
-		apps = apps[(page-1)*12 : page*12]
+
+	collectionName, err := ctx.Database.GetCollectionName(mux.Vars(r)["id"])
+	if err != nil {
+		return http.StatusInternalServerError, err
 	}
 
-	var cards db.RebbleCards
+	pages := nCompatibleApps / 12
+	if nCompatibleApps%12 > 0 {
+		pages = pages + 1
+	}
+
+	// Only allow to view up to 20 pages - More pages = more computation time
+	if pages > 20 {
+		pages = 20
+	}
+
+	collection := RebbleCollection{
+		Id:    mux.Vars(r)["id"],
+		Name:  collectionName,
+		Pages: pages,
+	}
+
+	if page > pages {
+		return http.StatusBadRequest, errors.New("Requested inexistant page number")
+	}
+
+	if page != 1 && page != pages {
+		apps = apps[(page-1)*12 : page*12]
+	} else if page == pages {
+		apps = apps[(page-1)*12:]
+	}
 
 	for _, app := range apps {
 		image := ""
 		if len(*app.Assets.Screenshots) != 0 && len((*app.Assets.Screenshots)[0].Screenshots) != 0 {
 			image = (*app.Assets.Screenshots)[0].Screenshots[0]
 		}
-		cards.Cards = append(cards.Cards, db.RebbleCard{
+		collection.Cards = append(collection.Cards, db.RebbleCard{
 			Id:       app.Id,
 			Title:    app.Name,
 			Type:     app.Type,
@@ -196,7 +240,7 @@ func CollectionHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Reque
 		})
 	}
 
-	data, err := json.MarshalIndent(cards, "", "\t")
+	data, err := json.MarshalIndent(collection, "", "\t")
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}

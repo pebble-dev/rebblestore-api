@@ -98,6 +98,24 @@ func (handler Handler) GetAppsForCollection(collectionID string) ([]RebbleApplic
 	return apps, nil
 }
 
+// GetCollectionName returns the name of a collection
+func (handler Handler) GetCollectionName(collectionID string) (string, error) {
+	rows, err := handler.Query("SELECT name FROM collections WHERE id=?", collectionID)
+	if err != nil {
+		return "", err
+	}
+	if !rows.Next() {
+		return "", errors.New("Specified collection does not exist")
+	}
+	var name string
+	err = rows.Scan(&name)
+	if err != nil {
+		return "", err
+	}
+
+	return name, nil
+}
+
 // GetAllApps returns all available apps
 func (handler Handler) GetAllApps() ([]RebbleApplication, error) {
 	rows, err := handler.Query(`
