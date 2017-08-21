@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"os"
 	"pebble-dev/rebblestore-api/db"
+	"pebble-dev/rebblestore-api/rebbleHandlers"
 	"testing"
 
 	"github.com/adams-sarah/test2doc/test"
@@ -23,9 +24,9 @@ func TestMain(m *testing.M) {
 	}
 
 	dbHandler := db.Handler{database}
-	context := &handlerContext{&dbHandler}
+	context := &rebbleHandlers.HandlerContext{&dbHandler}
 
-	var r = Handlers(context)
+	var r = rebbleHandlers.Handlers(context)
 	r.KeepContext = true
 	loggedRouter := handlers.LoggingHandler(os.Stdout, r)
 	test.RegisterURLVarExtractor(mux.Vars)
