@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"pebble-dev/rebblestore-api/db"
+	"sort"
 	"strconv"
 
 	"github.com/gorilla/mux"
@@ -56,92 +57,66 @@ func nCompatibleApps(apps *([]db.RebbleApplication), platform string) int {
 	return n
 }
 
-func bestApps(apps *([]db.RebbleApplication), sortByPopular bool, nApps int, platform string) *([]db.RebbleApplication) {
-	newApps := make([]db.RebbleApplication, 0)
+type Comparator func(a *db.RebbleApplication, b *db.RebbleApplication) bool
 
-	for _, app := range *apps {
-		if platform == "all" || in_array(platform, app.SupportedPlatforms) {
-			newApps = append(newApps, app)
-		}
-
-		if len(newApps) > nApps {
-			if sortByPopular {
-				worst := 0
-				for i, newApp := range newApps {
-					if newApp.ThumbsUp < newApps[worst].ThumbsUp {
-						worst = i
-					}
-				}
-				newApps = *(remove(&newApps, worst))
-			} else {
-				worst := 0
-				for i, newApp := range newApps {
-					if newApp.Published.UnixNano() < newApps[worst].Published.UnixNano() {
-						worst = i
-					}
-				}
-				newApps = *(remove(&newApps, worst))
-			}
-		}
-	}
-
-	return &newApps
+type sorter struct {
+	data       *[]db.RebbleApplication
+	comparator Comparator
 }
 
-func sortApps(apps *([]db.RebbleApplication), sortByPopular bool) *([]db.RebbleApplication) {
-	newApps := make([]db.RebbleApplication, 0)
+func (s sorter) Len() int {
+	return len(*s.data)
+}
 
-	for _, app := range *apps {
-		if len(newApps) == 0 {
-			newApps = []db.RebbleApplication{app}
+func (s sorter) Swap(i, j int) {
+	(*s.data)[i], (*s.data)[j] = (*s.data)[j], (*s.data)[i]
+}
 
-			continue
-		} else if len(newApps) == 1 {
-			if sortByPopular {
-				if newApps[0].ThumbsUp > app.ThumbsUp {
-					newApps = []db.RebbleApplication{newApps[0], app}
-				} else {
-					newApps = []db.RebbleApplication{app, newApps[0]}
-				}
-			} else {
-				if newApps[0].Published.UnixNano() > app.Published.UnixNano() {
-					newApps = []db.RebbleApplication{app, newApps[0]}
-				} else {
-					newApps = []db.RebbleApplication{newApps[0], app}
-				}
-			}
+func (s sorter) Less(i, j int) bool {
+	return s.comparator(&(*s.data)[i], &(*s.data)[j])
+}
 
-			continue
-		}
+// PopularFirst is a comparator that sorts applications by ThumbsUp ascending
+func PopularFirst(a *db.RebbleApplication, b *db.RebbleApplication) bool {
+	return a.ThumbsUp > b.ThumbsUp
+}
 
-		if sortByPopular {
-			added := false
-			for i, newApp := range newApps {
-				if newApp.ThumbsUp < app.ThumbsUp {
-					newApps = *(insert(&newApps, i, app))
-					added = true
-					break
-				}
-			}
-			if !added {
-				newApps = *(insert(&newApps, len(newApps), app))
-			}
-		} else {
-			added := false
-			for i, newApp := range newApps {
-				if app.Published.UnixNano() > newApp.Published.UnixNano() {
-					newApps = *(insert(&newApps, i, app))
-					added = true
-					break
-				}
-			}
-			if !added {
-				newApps = *(insert(&newApps, len(newApps), app))
-			}
-		}
+// PopularLast is a comparator that sorts applications by ThumbsUp descending
+func PopularLast(a *db.RebbleApplication, b *db.RebbleApplication) bool {
+	return !PopularFirst(a, b)
+}
+
+// NewelyPublishedFirst is a comparator that sorts applications by Published date ascending
+func NewelyPublishedFirst(a *db.RebbleApplication, b *db.RebbleApplication) bool {
+	return a.Published.UnixNano() > b.Published.UnixNano()
+}
+
+// OldestPublishedFirst is a comparator that sorts applications by Published date descending
+func OldestPublishedFirst(a *db.RebbleApplication, b *db.RebbleApplication) bool {
+	return !NewelyPublishedFirst(a, b)
+}
+
+func makeSort(apps *[]db.RebbleApplication, comparator Comparator) sorter {
+	return sorter{apps, comparator}
+}
+
+func bestApps(apps *([]db.RebbleApplication), sortBy Comparator, nApps int, platform string) *([]db.RebbleApplication) {
+	sortedApps := sortApps(apps, sortBy)
+
+	if len(*sortedApps) <= nApps {
+		return sortedApps
 	}
 
-	return &newApps
+	nAppsSlice := make([]db.RebbleApplication, nApps)
+	copy(nAppsSlice, *sortedApps)
+	return &nAppsSlice
+}
+
+func sortApps(apps *[]db.RebbleApplication, comparator Comparator) *([]db.RebbleApplication) {
+	sortedApps := make([]db.RebbleApplication, len(*apps))
+	copy(sortedApps, *apps)
+	sort.Sort(makeSort(&sortedApps, comparator))
+	return &sortedApps
 }
 
 // CollectionHandler serves a list of cards from a collection
@@ -152,14 +127,14 @@ func CollectionHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Reque
 		return http.StatusBadRequest, errors.New("Missing 'id' parameter")
 	}
 
-	var sortByPopular bool
+	sortBy := NewelyPublishedFirst
 	if o, ok := urlquery["order"]; ok {
 		if len(o) > 1 {
 			return http.StatusBadRequest, errors.New("Multiple 'order' parameters are not allowed")
 		} else if o[0] == "popular" {
-			sortByPopular = true
+			sortBy = PopularFirst
 		} else if o[0] == "new" {
-			sortByPopular = false
+			sortBy = NewelyPublishedFirst
 		} else {
 			return http.StatusBadRequest, errors.New("Invalid 'order' parameter")
 		}
@@ -192,8 +167,7 @@ func CollectionHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Reque
 		return http.StatusInternalServerError, err
 	}
 	nCompatibleApps := nCompatibleApps(&apps, platform)
-	apps = *(bestApps(&apps, sortByPopular, page*12, platform))
-	apps = *(sortApps(&apps, sortByPopular))
+	apps = *(bestApps(&apps, sortBy, page*12, platform))
 
 	collectionName, err := ctx.Database.GetCollectionName(mux.Vars(r)["id"])
 	if err != nil {
