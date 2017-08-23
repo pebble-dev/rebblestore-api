@@ -96,10 +96,6 @@ func OldestPublishedFirst(a *db.RebbleApplication, b *db.RebbleApplication) bool
 	return !NewelyPublishedFirst(a, b)
 }
 
-func makeSort(apps *[]db.RebbleApplication, comparator Comparator) sorter {
-	return sorter{apps, comparator}
-}
-
 func bestApps(apps *([]db.RebbleApplication), sortBy Comparator, nApps int, platform string) *([]db.RebbleApplication) {
 	sortedApps := sortApps(apps, sortBy)
 
@@ -107,15 +103,15 @@ func bestApps(apps *([]db.RebbleApplication), sortBy Comparator, nApps int, plat
 		return sortedApps
 	}
 
-	nAppsSlice := make([]db.RebbleApplication, nApps)
-	copy(nAppsSlice, *sortedApps)
-	return &nAppsSlice
+	nSortedApps := make([]db.RebbleApplication, nApps)
+	copy(nSortedApps, *sortedApps)
+	return &nSortedApps
 }
 
 func sortApps(apps *[]db.RebbleApplication, comparator Comparator) *([]db.RebbleApplication) {
 	sortedApps := make([]db.RebbleApplication, len(*apps))
 	copy(sortedApps, *apps)
-	sort.Sort(makeSort(&sortedApps, comparator))
+	sort.Sort(sorter{&sortedApps, comparator})
 	return &sortedApps
 }
 
