@@ -70,13 +70,13 @@ func PopularLast(a *db.RebbleApplication, b *db.RebbleApplication) bool {
 }
 
 // NewelyPublishedFirst is a comparator that sorts applications by Published date ascending
-func NewelyPublishedFirst(a *db.RebbleApplication, b *db.RebbleApplication) bool {
+func NewlyPublishedFirst(a *db.RebbleApplication, b *db.RebbleApplication) bool {
 	return a.Published.UnixNano() > b.Published.UnixNano()
 }
 
 // OldestPublishedFirst is a comparator that sorts applications by Published date descending
 func OldestPublishedFirst(a *db.RebbleApplication, b *db.RebbleApplication) bool {
-	return !NewelyPublishedFirst(a, b)
+	return !NewlyPublishedFirst(a, b)
 }
 
 func bestApps(apps *([]db.RebbleApplication), sortBy Comparator, nApps int, platform string) *([]db.RebbleApplication) {
@@ -108,14 +108,14 @@ func CollectionHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Reque
 		return http.StatusBadRequest, errors.New("Missing 'id' parameter")
 	}
 
-	sortBy := NewelyPublishedFirst
+	sortBy := NewlyPublishedFirst
 	if o, ok := urlquery["order"]; ok {
 		if len(o) > 1 {
 			return http.StatusBadRequest, errors.New("Multiple 'order' parameters are not allowed")
 		} else if o[0] == "popular" {
 			sortBy = PopularFirst
 		} else if o[0] == "new" {
-			sortBy = NewelyPublishedFirst
+			sortBy = NewlyPublishedFirst
 		} else {
 			return http.StatusBadRequest, errors.New("Invalid 'order' parameter")
 		}
