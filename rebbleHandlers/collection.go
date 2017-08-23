@@ -59,23 +59,6 @@ func nCompatibleApps(apps *([]db.RebbleApplication), platform string) int {
 
 type Comparator func(a *db.RebbleApplication, b *db.RebbleApplication) bool
 
-type sorter struct {
-	data       []db.RebbleApplication
-	comparator Comparator
-}
-
-func (s sorter) Len() int {
-	return len(s.data)
-}
-
-func (s sorter) Swap(i, j int) {
-	s.data[i], s.data[j] = s.data[j], s.data[i]
-}
-
-func (s sorter) Less(i, j int) bool {
-	return s.comparator(&s.data[i], &s.data[j])
-}
-
 // PopularFirst is a comparator that sorts applications by ThumbsUp ascending
 func PopularFirst(a *db.RebbleApplication, b *db.RebbleApplication) bool {
 	return a.ThumbsUp > b.ThumbsUp
@@ -111,7 +94,9 @@ func bestApps(apps *([]db.RebbleApplication), sortBy Comparator, nApps int, plat
 func sortApps(apps *[]db.RebbleApplication, comparator Comparator) *([]db.RebbleApplication) {
 	sortedApps := make([]db.RebbleApplication, len(*apps))
 	copy(sortedApps, *apps)
-	sort.Sort(sorter{sortedApps, comparator})
+	sort.Slice(sortedApps, func(i, j int) bool {
+		return comparator(&sortedApps[i], &sortedApps[j])
+	})
 	return &sortedApps
 }
 
