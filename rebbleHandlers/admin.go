@@ -8,12 +8,11 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"pebble-dev/rebblestore-api/db"
 	"strings"
 
-	"github.com/nu7hatch/gouuid"
-
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/nu7hatch/gouuid"
+	"github.com/pebble-dev/rebblestore-api/db"
 )
 
 // walkFiles is intended to quickly crawl the pebble application folder

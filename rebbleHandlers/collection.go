@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"pebble-dev/rebblestore-api/db"
 	"strconv"
 
 	"github.com/gorilla/mux"
+	"github.com/pebble-dev/rebblestore-api/db"
 )
 
 type RebbleCollection struct {

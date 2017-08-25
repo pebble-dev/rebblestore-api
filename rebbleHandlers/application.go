@@ -7,9 +7,10 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"pebble-dev/rebblestore-api/db"
+	"strconv"
 
 	"github.com/gorilla/mux"
+	"github.com/pebble-dev/rebblestore-api/db"
 )
 
 // PebbleAppList contains a list of PebbleApplication. It matches the format of Pebble API answers.
@@ -248,13 +249,36 @@ func RecurseFolder(w http.ResponseWriter, path string, f os.FileInfo, lvl int) {
 
 // AppsHandler lists all of the available applications from the backend DB.
 func AppsHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Request) (int, error) {
-	apps, err := ctx.Database.GetAllApps()
+	page, err := strconv.Atoi(mux.Vars(r)["page"])
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
-	for _, app := range apps {
-		fmt.Fprintf(w, "Item: %s\n Author: %s\n\n", app.Name, app.Author.Name)
+
+	limit, err := strconv.Atoi(mux.Vars(r)["limit"])
+	if err != nil {
+		return http.StatusInternalServerError, err
 	}
+
+	var ascending bool
+	order := mux.Vars(r)["order"]
+	if order == "asc" {
+		ascending = true
+	}
+
+	sortby := mux.Vars(r)["sortby"]
+
+	apps, err := ctx.Database.GetAllApps(sortby, ascending, page*limit, limit)
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+
+	data, err := json.Marshal(apps)
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+
+	w.Header().Add("content-type", "application/json")
+	w.Write(data)
 	return http.StatusOK, nil
 }
 

@@ -117,20 +117,35 @@ func (handler Handler) GetCollectionName(collectionID string) (string, error) {
 }
 
 // GetAllApps returns all available apps
-func (handler Handler) GetAllApps() ([]RebbleApplication, error) {
+func (handler Handler) GetAllApps(sortby string, ascending bool, start int, limit int) ([]RebbleApplication, error) {
+	order := "DESC"
+	if ascending {
+		order = "ASC"
+	}
+
+	var orderCol string
+	switch sortby {
+	case "popular":
+		orderCol = "thumbs_up"
+	default:
+		orderCol = "published_date"
+	}
+
 	rows, err := handler.Query(`
-		SELECT apps.name, authors.name
+		SELECT apps.name, authors.name, apps.icon, apps.id, apps.thumbs_up
 		FROM apps
 		JOIN authors ON apps.author_id = authors.id
-		ORDER BY published_date ASC LIMIT 20
-	`)
+		ORDER BY ? ?
+		OFFSET ?
+		LIMIT ?
+	`, orderCol, order, start, limit)
 	if err != nil {
 		return nil, err
 	}
 	apps := make([]RebbleApplication, 0)
 	for rows.Next() {
 		app := RebbleApplication{}
-		err = rows.Scan(&app.Name, &app.Author.Name)
+		err = rows.Scan(&app.Name, &app.Author.Name, &app.Assets.Icon, &app.Id, &app.ThumbsUp)
 		apps = append(apps, app)
 	}
 	return apps, nil

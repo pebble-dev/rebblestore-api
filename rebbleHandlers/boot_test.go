@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"pebble-dev/rebblestore-api/common"
 	"strings"
 	"testing"
 
 	"github.com/adams-sarah/test2doc/test"
+	"github.com/pebble-dev/rebblestore-api/common"
 )
 
 var server *test.Server

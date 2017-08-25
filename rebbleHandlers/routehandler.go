@@ -3,7 +3,8 @@ package rebbleHandlers
 import (
 	"log"
 	"net/http"
-	"pebble-dev/rebblestore-api/db"
+
+	"github.com/pebble-dev/rebblestore-api/db"
 )
 
 // HandlerContext is our struct for storing the data we want to inject in to each handler
