@@ -136,6 +136,7 @@ func parseApp(path string, authors *map[string]int, lastAuthorId *int, collectio
 
 	err = json.Unmarshal(f, &data)
 	if err != nil {
+		log.Print("Error parsing app JSON: " + path)
 		return nil, nil, err
 	}
 	if len(data.Apps) != 1 {
