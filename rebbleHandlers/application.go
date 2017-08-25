@@ -268,7 +268,7 @@ func AppsHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Request) (i
 
 	sortby := mux.Vars(r)["sortby"]
 
-	apps, err := ctx.Database.GetAllApps(sortby, ascending, page*limit, limit)
+	apps, err := ctx.Database.GetAllApps(sortby, ascending, (page-1)*limit, limit)
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}

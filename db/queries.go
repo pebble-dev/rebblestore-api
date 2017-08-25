@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"log"
 	"strings"
 	"time"
 )
@@ -117,7 +118,7 @@ func (handler Handler) GetCollectionName(collectionID string) (string, error) {
 }
 
 // GetAllApps returns all available apps
-func (handler Handler) GetAllApps(sortby string, ascending bool, start int, limit int) ([]RebbleApplication, error) {
+func (handler Handler) GetAllApps(sortby string, ascending bool, offset int, limit int) ([]RebbleApplication, error) {
 	order := "DESC"
 	if ascending {
 		order = "ASC"
@@ -126,26 +127,31 @@ func (handler Handler) GetAllApps(sortby string, ascending bool, start int, limi
 	var orderCol string
 	switch sortby {
 	case "popular":
-		orderCol = "thumbs_up"
+		orderCol = "apps.thumbs_up"
 	default:
-		orderCol = "published_date"
+		orderCol = "apps.published_date"
 	}
 
+	log.Printf("Sort by: %v\nOrder: %v\nLimit: %v\nOffset: %v\n", orderCol, order, limit, offset)
+
 	rows, err := handler.Query(`
-		SELECT apps.name, authors.name, apps.icon, apps.id, apps.thumbs_up
+		SELECT apps.name, authors.name, apps.icon_url, apps.id, apps.thumbs_up, apps.published_date
 		FROM apps
 		JOIN authors ON apps.author_id = authors.id
-		ORDER BY ? ?
-		OFFSET ?
+		ORDER BY ?
 		LIMIT ?
-	`, orderCol, order, start, limit)
+		OFFSET ?
+	`, orderCol+" "+order, limit, offset)
 	if err != nil {
 		return nil, err
 	}
 	apps := make([]RebbleApplication, 0)
 	for rows.Next() {
 		app := RebbleApplication{}
-		err = rows.Scan(&app.Name, &app.Author.Name, &app.Assets.Icon, &app.Id, &app.ThumbsUp)
+		var t_published int64
+		err = rows.Scan(&app.Name, &app.Author.Name, &app.Assets.Icon, &app.Id, &app.ThumbsUp, &t_published)
+		app.Published.Time = time.Unix(0, t_published)
+
 		apps = append(apps, app)
 	}
 	return apps, nil

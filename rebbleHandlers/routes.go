@@ -19,7 +19,7 @@ func DummyHandler(w http.ResponseWriter, r *http.Request) {
 func Handlers(context *HandlerContext) *mux.Router {
 	r := mux.NewRouter()
 	r.Handle("/", routeHandler{context, HomeHandler}).Methods("GET")
-	r.Handle("/dev/apps/get_apps/page/{page}", routeHandler{context, AppsHandler}).Methods("GET").Queries("limit", "order", "sortby")
+	r.Handle("/dev/apps/get_apps/page/{page:[0-9]+}", routeHandler{context, AppsHandler}).Methods("GET").Queries("limit", "{limit:[0-5]?[0-9]{1}}", "order", "{order:asc|desc}", "sortby", "{sortby:popular|recent}")
 	r.Handle("/dev/apps/get_app/id/{id}", routeHandler{context, AppHandler}).Methods("GET")
 	r.Handle("/dev/apps/get_tags/id/{id}", routeHandler{context, TagsHandler}).Methods("GET")
 	r.Handle("/dev/apps/get_versions/id/{id}", routeHandler{context, VersionsHandler}).Methods("GET")
