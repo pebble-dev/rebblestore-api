@@ -159,15 +159,7 @@ func (handler Handler) GetAllApps(sortby string, ascending bool, offset int, lim
 
 // GetApp returns a specific app
 func (handler Handler) GetApp(id string) (RebbleApplication, error) {
-	rows, err := handler.Query("SELECT apps.id, apps.name, apps.author_id, authors.name, apps.tag_ids, apps.description, apps.thumbs_up, apps.type, apps.supported_platforms, apps.published_date, apps.pbw_url, apps.rebble_ready, apps.updated, apps.version, apps.support_url, apps.author_url, apps.source_url, apps.screenshots, apps.banner_url, apps.icon_url, apps.doomsday_backup FROM apps JOIN authors ON apps.author_id = authors.id WHERE apps.id=?", id)
-	if err != nil {
-		return RebbleApplication{}, err
-	}
-
-	exists := rows.Next()
-	if !exists {
-		return RebbleApplication{}, errors.New("No application with this ID")
-	}
+	row := handler.QueryRow("SELECT apps.id, apps.name, apps.author_id, authors.name, apps.tag_ids, apps.description, apps.thumbs_up, apps.type, apps.supported_platforms, apps.published_date, apps.pbw_url, apps.rebble_ready, apps.updated, apps.version, apps.support_url, apps.author_url, apps.source_url, apps.screenshots, apps.banner_url, apps.icon_url, apps.doomsday_backup FROM apps JOIN authors ON apps.author_id = authors.id WHERE apps.id=?", id)
 
 	app := RebbleApplication{}
 	var supportedPlatforms_b []byte
@@ -176,10 +168,13 @@ func (handler Handler) GetApp(id string) (RebbleApplication, error) {
 	var tagIds []string
 	var screenshots_b []byte
 	var screenshots *([]RebbleScreenshotsPlatform)
-	err = rows.Scan(&app.Id, &app.Name, &app.Author.Id, &app.Author.Name, &tagIds_b, &app.Description, &app.ThumbsUp, &app.Type, &supportedPlatforms_b, &t_published, &app.AppInfo.PbwUrl, &app.AppInfo.RebbleReady, &t_updated, &app.AppInfo.Version, &app.AppInfo.SupportUrl, &app.AppInfo.AuthorUrl, &app.AppInfo.SourceUrl, &screenshots_b, &app.Assets.Banner, &app.Assets.Icon, &app.DoomsdayBackup)
-	if err != nil {
+	err := row.Scan(&app.Id, &app.Name, &app.Author.Id, &app.Author.Name, &tagIds_b, &app.Description, &app.ThumbsUp, &app.Type, &supportedPlatforms_b, &t_published, &app.AppInfo.PbwUrl, &app.AppInfo.RebbleReady, &t_updated, &app.AppInfo.Version, &app.AppInfo.SupportUrl, &app.AppInfo.AuthorUrl, &app.AppInfo.SourceUrl, &screenshots_b, &app.Assets.Banner, &app.Assets.Icon, &app.DoomsdayBackup)
+	if err == sql.ErrNoRows {
+		return RebbleApplication{}, errors.New("No application with this ID")
+	} else if err != nil {
 		return RebbleApplication{}, err
 	}
+
 	json.Unmarshal(supportedPlatforms_b, &app.SupportedPlatforms)
 	app.Published.Time = time.Unix(0, t_published)
 	app.AppInfo.Updated.Time = time.Unix(0, t_updated)
@@ -189,13 +184,9 @@ func (handler Handler) GetApp(id string) (RebbleApplication, error) {
 	app.Assets.Screenshots = screenshots
 
 	for i, tagID := range tagIds {
-		rows, err := handler.Query("SELECT id, name, color FROM collections WHERE id=?", tagID)
-		if err != nil {
-			return RebbleApplication{}, err
-		}
+		row := handler.QueryRow("SELECT id, name, color FROM collections WHERE id=?", tagID)
 
-		rows.Next()
-		err = rows.Scan(&app.AppInfo.Tags[i].Id, &app.AppInfo.Tags[i].Name, &app.AppInfo.Tags[i].Color)
+		err = row.Scan(&app.AppInfo.Tags[i].Id, &app.AppInfo.Tags[i].Name, &app.AppInfo.Tags[i].Color)
 		if err != nil {
 			return RebbleApplication{}, err
 		}
