@@ -18,24 +18,6 @@ type RebbleCollection struct {
 	Cards []db.RebbleCard `json:"cards"`
 }
 
-func insert(apps *([]db.RebbleApplication), location int, app db.RebbleApplication) *([]db.RebbleApplication) {
-	beggining := (*apps)[:location]
-	end := make([]db.RebbleApplication, len(*apps)-len(beggining))
-	copy(end, (*apps)[location:])
-	beggining = append(beggining, app)
-	beggining = append(beggining, end...)
-
-	return &beggining
-}
-
-func remove(apps *([]db.RebbleApplication), location int) *([]db.RebbleApplication) {
-	new := make([]db.RebbleApplication, location)
-	copy(new, (*apps)[:location])
-	new = append(new, (*apps)[location+1:]...)
-
-	return &new
-}
-
 func in_array(s string, array []string) bool {
 	for _, item := range array {
 		if item == s {
