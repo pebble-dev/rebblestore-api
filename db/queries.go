@@ -132,16 +132,18 @@ func (handler Handler) GetAllApps(sortby string, ascending bool, offset int, lim
 		orderCol = "apps.published_date"
 	}
 
-	log.Printf("Sort by: %v\nOrder: %v\nLimit: %v\nOffset: %v\n", orderCol, order, limit, offset)
+	log.Printf("Sort by: %v\nLimit: %v\nOffset: %v\n", orderCol+" "+order, limit, offset)
 
+	// this code looks weird, but ORDER BY does not currently work with prepared statements,
+	// that is why it is written this way. it should be completely safe as it doesn't take user input
 	rows, err := handler.Query(`
 		SELECT apps.name, authors.name, apps.icon_url, apps.id, apps.thumbs_up, apps.published_date
 		FROM apps
 		JOIN authors ON apps.author_id = authors.id
-		ORDER BY ?
+		ORDER BY `+orderCol+" "+order+`
 		LIMIT ?
 		OFFSET ?
-	`, orderCol+" "+order, limit, offset)
+	`, limit, offset)
 	if err != nil {
 		return nil, err
 	}
