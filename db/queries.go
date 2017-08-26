@@ -127,8 +127,10 @@ func (handler Handler) GetAllApps(sortby string, ascending bool, offset int, lim
 	switch sortby {
 	case "popular":
 		orderCol = "apps.thumbs_up"
-	default:
+	case "recent":
 		orderCol = "apps.published_date"
+	default:
+		return nil, errors.New("Invalid sortby parameter")
 	}
 
 	// this code looks weird, but ORDER BY does not currently work with prepared statements,

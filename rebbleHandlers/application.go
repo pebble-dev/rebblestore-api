@@ -2,6 +2,7 @@ package rebbleHandlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -256,22 +257,54 @@ func AppsHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Request) (i
 		return http.StatusBadRequest, err
 	}
 
-	limit, err := strconv.Atoi(mux.Vars(r)["limit"])
-	if err != nil {
-		return http.StatusBadRequest, err
-	}
+	urlquery := r.URL.Query()
 
-	if limit > 50 {
-		limit = 50
-	}
-
+	var limit int
 	var ascending bool
-	order := mux.Vars(r)["order"]
-	if order == "asc" {
-		ascending = true
+	var sortby string
+
+	if l, ok := urlquery["limit"]; ok {
+		if len(l) > 1 {
+			return http.StatusBadRequest, errors.New("Multiple 'limit' parameters are not allowed")
+		}
+
+		limit, err = strconv.Atoi(l[0])
+		if err != nil {
+			return http.StatusBadRequest, errors.New("Specified 'limit' parameter is not a parsable integer")
+		}
+
+		if limit > 50 {
+			return http.StatusBadRequest, errors.New("Specified 'limit' parameter is above the maximum allowed")
+		}
+	} else {
+		limit = 20
 	}
 
-	sortby := mux.Vars(r)["sortby"]
+	if o, ok := urlquery["order"]; ok {
+		if len(o) > 1 {
+			return http.StatusBadRequest, errors.New("Multiple 'order' parameters are not allowed")
+		} else if o[0] == "asc" {
+			ascending = true
+		} else if o[0] == "desc" {
+			ascending = false
+		} else {
+			return http.StatusBadRequest, errors.New("Invalid 'order' parameter")
+		}
+	} else {
+		ascending = false
+	}
+
+	if sb, ok := urlquery["sortby"]; ok {
+		if len(sb) > 1 {
+			return http.StatusBadRequest, errors.New("Multiple 'sortby' parameters are not allowed")
+		} else if sb[0] == "popular" {
+			sortby = sb[0]
+		} else if sb[0] == "recent" {
+			sortby = sb[0]
+		}
+	} else {
+		sortby = "recent"
+	}
 
 	apps, err := ctx.Database.GetAllApps(sortby, ascending, (page-1)*limit, limit)
 	if err != nil {
