@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"log"
 	"strings"
 	"time"
 )
@@ -131,8 +130,6 @@ func (handler Handler) GetAllApps(sortby string, ascending bool, offset int, lim
 	default:
 		orderCol = "apps.published_date"
 	}
-
-	log.Printf("Sort by: %v\nLimit: %v\nOffset: %v\n", orderCol+" "+order, limit, offset)
 
 	// this code looks weird, but ORDER BY does not currently work with prepared statements,
 	// that is why it is written this way. it should be completely safe as it doesn't take user input
