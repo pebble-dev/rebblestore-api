@@ -253,12 +253,16 @@ func RecurseFolder(w http.ResponseWriter, path string, f os.FileInfo, lvl int) {
 func AppsHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Request) (int, error) {
 	page, err := strconv.Atoi(mux.Vars(r)["page"])
 	if err != nil {
-		return http.StatusInternalServerError, err
+		return http.StatusBadRequest, err
 	}
 
 	limit, err := strconv.Atoi(mux.Vars(r)["limit"])
 	if err != nil {
-		return http.StatusInternalServerError, err
+		return http.StatusBadRequest, err
+	}
+
+	if limit > 50 {
+		limit = 50
 	}
 
 	var ascending bool
