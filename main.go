@@ -6,12 +6,13 @@ import (
 	"net/http"
 	"os"
 
+	"pebble-dev/rebblestore-api/common"
+	"pebble-dev/rebblestore-api/db"
+	"pebble-dev/rebblestore-api/rebbleHandlers"
+
 	"github.com/gorilla/handlers"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pborman/getopt"
-	"github.com/pebble-dev/rebblestore-api/common"
-	"github.com/pebble-dev/rebblestore-api/db"
-	"github.com/pebble-dev/rebblestore-api/rebbleHandlers"
 )
 
 func main() {

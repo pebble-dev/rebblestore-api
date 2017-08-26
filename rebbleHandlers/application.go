@@ -9,8 +9,9 @@ import (
 	"os"
 	"strconv"
 
+	"pebble-dev/rebblestore-api/db"
+
 	"github.com/gorilla/mux"
-	"github.com/pebble-dev/rebblestore-api/db"
 )
 
 // PebbleAppList contains a list of PebbleApplication. It matches the format of Pebble API answers.

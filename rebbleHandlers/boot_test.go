@@ -7,8 +7,9 @@ import (
 	"strings"
 	"testing"
 
+	"pebble-dev/rebblestore-api/common"
+
 	"github.com/adams-sarah/test2doc/test"
-	"github.com/pebble-dev/rebblestore-api/common"
 )
 
 var server *test.Server

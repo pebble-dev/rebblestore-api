@@ -6,8 +6,9 @@ import (
 	"net/http"
 	"strconv"
 
+	"pebble-dev/rebblestore-api/db"
+
 	"github.com/gorilla/mux"
-	"github.com/pebble-dev/rebblestore-api/db"
 )
 
 type RebbleCollection struct {

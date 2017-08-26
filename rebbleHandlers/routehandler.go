@@ -4,7 +4,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/pebble-dev/rebblestore-api/db"
+	"pebble-dev/rebblestore-api/db"
 )
 
 // HandlerContext is our struct for storing the data we want to inject in to each handler

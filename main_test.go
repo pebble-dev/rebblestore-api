@@ -5,12 +5,13 @@ import (
 	"os"
 	"testing"
 
+	"pebble-dev/rebblestore-api/db"
+	"pebble-dev/rebblestore-api/rebbleHandlers"
+
 	"github.com/adams-sarah/test2doc/test"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/pebble-dev/rebblestore-api/db"
-	"github.com/pebble-dev/rebblestore-api/rebbleHandlers"
 )
 
 var server *test.Server

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/pebble-dev/rebblestore-api/common"
+	"pebble-dev/rebblestore-api/common"
 )
 
 // AdminVersionHandler returns the latest build information from the host
