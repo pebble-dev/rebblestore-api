@@ -271,3 +271,65 @@ func (handler Handler) GetAppVersions(id string) ([]RebbleVersion, error) {
 
 	return versions, nil
 }
+
+// GetAuthor returns a RebbleAuthor
+func (handler Handler) GetAuthor(id int) (RebbleAuthor, error) {
+	rows, err := handler.Query("SELECT authors.name FROM authors WHERE id=?", id)
+	if err != nil {
+		return RebbleAuthor{}, err
+	}
+	exists := rows.Next()
+	if !exists {
+		return RebbleAuthor{}, errors.New("No app with this ID")
+	}
+
+	author := RebbleAuthor{
+		Id: id,
+	}
+	err = rows.Scan(&author.Name)
+	if err != nil {
+		return RebbleAuthor{}, err
+	}
+
+	return author, nil
+}
+
+// GetAuthorCards returns cards for all apps from a specific author
+func (handler Handler) GetAuthorCards(id int) (RebbleCards, error) {
+	rows, err := handler.Query(`
+		SELECT id, name, type, screenshots, thumbs_up
+		FROM apps
+		WHERE author_id=?
+		ORDER BY published_date ASC
+	`, id)
+	if err != nil {
+		return RebbleCards{}, err
+	}
+
+	cards := RebbleCards{
+		Cards: make([]RebbleCard, 0),
+	}
+
+	for rows.Next() {
+		card := RebbleCard{}
+
+		var screenshots_b []byte
+		var screenshots []RebbleScreenshotsPlatform
+
+		err = rows.Scan(&card.Id, &card.Title, &card.Type, &screenshots_b, &card.ThumbsUp)
+		if err != nil {
+			return RebbleCards{}, err
+		}
+
+		err = json.Unmarshal(screenshots_b, &screenshots)
+		if err != nil {
+			return RebbleCards{}, err
+		}
+		if len(screenshots) != 0 && len(screenshots[0].Screenshots) != 0 {
+			card.ImageUrl = screenshots[0].Screenshots[0]
+		}
+		cards.Cards = append(cards.Cards, card)
+	}
+
+	return cards, nil
+}
