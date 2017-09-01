@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"pebble-dev/rebblestore-api/common"
 	"strings"
 	"testing"
+
+	"pebble-dev/rebblestore-api/common"
 
 	"github.com/adams-sarah/test2doc/test"
 )

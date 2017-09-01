@@ -2,11 +2,14 @@ package rebbleHandlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
+	"strconv"
+
 	"pebble-dev/rebblestore-api/db"
 
 	"github.com/gorilla/mux"
@@ -135,6 +138,7 @@ func parseApp(path string, authors *map[string]int, lastAuthorId *int, collectio
 
 	err = json.Unmarshal(f, &data)
 	if err != nil {
+		log.Print("Error parsing app JSON: " + path)
 		return nil, nil, err
 	}
 	if len(data.Apps) != 1 {
@@ -248,13 +252,72 @@ func RecurseFolder(w http.ResponseWriter, path string, f os.FileInfo, lvl int) {
 
 // AppsHandler lists all of the available applications from the backend DB.
 func AppsHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Request) (int, error) {
-	apps, err := ctx.Database.GetAllApps()
+	page, err := strconv.Atoi(mux.Vars(r)["page"])
+	if err != nil {
+		return http.StatusBadRequest, err
+	}
+
+	urlquery := r.URL.Query()
+
+	var limit int
+	var ascending bool
+	var sortby string
+
+	if l, ok := urlquery["limit"]; ok {
+		if len(l) > 1 {
+			return http.StatusBadRequest, errors.New("Multiple 'limit' parameters are not allowed")
+		}
+
+		limit, err = strconv.Atoi(l[0])
+		if err != nil {
+			return http.StatusBadRequest, errors.New("Specified 'limit' parameter is not a parsable integer")
+		}
+
+		if limit > 50 {
+			return http.StatusBadRequest, errors.New("Specified 'limit' parameter is above the maximum allowed")
+		}
+	} else {
+		limit = 20
+	}
+
+	if o, ok := urlquery["order"]; ok {
+		if len(o) > 1 {
+			return http.StatusBadRequest, errors.New("Multiple 'order' parameters are not allowed")
+		} else if o[0] == "asc" {
+			ascending = true
+		} else if o[0] == "desc" {
+			ascending = false
+		} else {
+			return http.StatusBadRequest, errors.New("Invalid 'order' parameter")
+		}
+	} else {
+		ascending = false
+	}
+
+	if sb, ok := urlquery["sortby"]; ok {
+		if len(sb) > 1 {
+			return http.StatusBadRequest, errors.New("Multiple 'sortby' parameters are not allowed")
+		} else if sb[0] == "popular" {
+			sortby = sb[0]
+		} else if sb[0] == "recent" {
+			sortby = sb[0]
+		}
+	} else {
+		sortby = "recent"
+	}
+
+	apps, err := ctx.Database.GetAllApps(sortby, ascending, (page-1)*limit, limit)
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
-	for _, app := range apps {
-		fmt.Fprintf(w, "Item: %s\n Author: %s\n\n", app.Name, app.Author.Name)
+
+	data, err := json.Marshal(apps)
+	if err != nil {
+		return http.StatusInternalServerError, err
 	}
+
+	w.Header().Add("content-type", "application/json")
+	w.Write(data)
 	return http.StatusOK, nil
 }
 
