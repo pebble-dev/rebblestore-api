@@ -51,7 +51,15 @@ func (handler Handler) Search(query string) (RebbleCards, error) {
 }
 
 // GetAppsForCollection returns list of apps for single collection
-func (handler Handler) GetAppsForCollection(collectionID string) ([]RebbleApplication, error) {
+func (handler Handler) GetAppsForCollection(collectionID string, sortByPopular bool) ([]RebbleApplication, error) {
+	var order string
+
+	if sortByPopular {
+		order = "thumbs_up"
+	} else {
+		order = "published_date"
+	}
+
 	rows, err := handler.Query("SELECT apps FROM collections WHERE id=?", collectionID)
 	if err != nil {
 		return nil, err
@@ -67,33 +75,39 @@ func (handler Handler) GetAppsForCollection(collectionID string) ([]RebbleApplic
 	}
 	json.Unmarshal(appIdsB, &appIds)
 
-	apps := make([]RebbleApplication, 0)
-	for _, id := range appIds {
-		rows, err = handler.Query("SELECT id, name, type, thumbs_up, screenshots, published_date, supported_platforms FROM apps WHERE id=?", id)
-		if err != nil {
-			return nil, err
-		}
+	for i, appId := range appIds {
+		appIds[i] = "'" + appId + "'"
+	}
 
-		for rows.Next() {
-			app := RebbleApplication{}
-			var t int64
-			var supported_platforms_b []byte
-			var screenshots_b []byte
-			err = rows.Scan(&app.Id, &app.Name, &app.Type, &app.ThumbsUp, &screenshots_b, &t, &supported_platforms_b)
-			if err != nil {
-				return []RebbleApplication{}, err
-			}
-			app.Published.Time = time.Unix(0, t)
-			err = json.Unmarshal(supported_platforms_b, &app.SupportedPlatforms)
-			if err != nil {
-				return []RebbleApplication{}, err
-			}
-			err = json.Unmarshal(screenshots_b, &app.Assets.Screenshots)
-			if err != nil {
-				return []RebbleApplication{}, err
-			}
-			apps = append(apps, app)
+	idList := strings.Join(appIds, ", ")
+
+	apps := make([]RebbleApplication, 0)
+
+	// It is not possible to give a list or an order via a prepared statement, so this will have to do. Unless someone managed to change their application ID to a SQL injection, this is perfectly safe.
+	rows, err = handler.Query("SELECT id, name, type, thumbs_up, screenshots, published_date, supported_platforms FROM apps WHERE id IN (" + idList + ") ORDER BY " + order + " DESC")
+	if err != nil {
+		return nil, err
+	}
+
+	for rows.Next() {
+		app := RebbleApplication{}
+		var t int64
+		var supported_platforms_b []byte
+		var screenshots_b []byte
+		err = rows.Scan(&app.Id, &app.Name, &app.Type, &app.ThumbsUp, &screenshots_b, &t, &supported_platforms_b)
+		if err != nil {
+			return []RebbleApplication{}, err
 		}
+		app.Published.Time = time.Unix(0, t)
+		err = json.Unmarshal(supported_platforms_b, &app.SupportedPlatforms)
+		if err != nil {
+			return []RebbleApplication{}, err
+		}
+		err = json.Unmarshal(screenshots_b, &app.Assets.Screenshots)
+		if err != nil {
+			return []RebbleApplication{}, err
+		}
+		apps = append(apps, app)
 	}
 	return apps, nil
 }

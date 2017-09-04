@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net/http"
 	"pebble-dev/rebblestore-api/db"
-	"sort"
 	"strconv"
 
 	"github.com/gorilla/mux"
@@ -39,49 +38,6 @@ func nCompatibleApps(apps *([]db.RebbleApplication), platform string) int {
 	return n
 }
 
-type Comparator func(a *db.RebbleApplication, b *db.RebbleApplication) bool
-
-// PopularFirst is a comparator that sorts applications by ThumbsUp ascending
-func PopularFirst(a *db.RebbleApplication, b *db.RebbleApplication) bool {
-	return a.ThumbsUp > b.ThumbsUp
-}
-
-// PopularLast is a comparator that sorts applications by ThumbsUp descending
-func PopularLast(a *db.RebbleApplication, b *db.RebbleApplication) bool {
-	return !PopularFirst(a, b)
-}
-
-// NewelyPublishedFirst is a comparator that sorts applications by Published date ascending
-func NewlyPublishedFirst(a *db.RebbleApplication, b *db.RebbleApplication) bool {
-	return a.Published.UnixNano() > b.Published.UnixNano()
-}
-
-// OldestPublishedFirst is a comparator that sorts applications by Published date descending
-func OldestPublishedFirst(a *db.RebbleApplication, b *db.RebbleApplication) bool {
-	return !NewlyPublishedFirst(a, b)
-}
-
-func bestApps(apps *([]db.RebbleApplication), sortBy Comparator, nApps int, platform string) *([]db.RebbleApplication) {
-	sortedApps := sortApps(apps, sortBy)
-
-	if len(*sortedApps) <= nApps {
-		return sortedApps
-	}
-
-	nSortedApps := make([]db.RebbleApplication, nApps)
-	copy(nSortedApps, *sortedApps)
-	return &nSortedApps
-}
-
-func sortApps(apps *[]db.RebbleApplication, comparator Comparator) *([]db.RebbleApplication) {
-	sortedApps := make([]db.RebbleApplication, len(*apps))
-	copy(sortedApps, *apps)
-	sort.Slice(sortedApps, func(i, j int) bool {
-		return comparator(&sortedApps[i], &sortedApps[j])
-	})
-	return &sortedApps
-}
-
 // CollectionHandler serves a list of cards from a collection
 func CollectionHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Request) (int, error) {
 	urlquery := r.URL.Query()
@@ -90,14 +46,14 @@ func CollectionHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Reque
 		return http.StatusBadRequest, errors.New("Missing 'id' parameter")
 	}
 
-	sortBy := NewlyPublishedFirst
+	var sortByPopular bool
 	if o, ok := urlquery["order"]; ok {
 		if len(o) > 1 {
 			return http.StatusBadRequest, errors.New("Multiple 'order' parameters are not allowed")
 		} else if o[0] == "popular" {
-			sortBy = PopularFirst
+			sortByPopular = true
 		} else if o[0] == "new" {
-			sortBy = NewlyPublishedFirst
+			sortByPopular = false
 		} else {
 			return http.StatusBadRequest, errors.New("Invalid 'order' parameter")
 		}
@@ -125,21 +81,26 @@ func CollectionHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Reque
 		}
 	}
 
-	apps, err := ctx.Database.GetAppsForCollection(mux.Vars(r)["id"])
+	apps, err := ctx.Database.GetAppsForCollection(mux.Vars(r)["id"], sortByPopular)
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
-	nCompatibleApps := nCompatibleApps(&apps, platform)
-	apps = *(bestApps(&apps, sortBy, page*12, platform))
 
 	collectionName, err := ctx.Database.GetCollectionName(mux.Vars(r)["id"])
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
 
+	nCompatibleApps := nCompatibleApps(&apps, platform)
 	pages := nCompatibleApps / 12
 	if nCompatibleApps%12 > 0 {
 		pages = pages + 1
+	}
+
+	if page != pages {
+		apps = apps[(page-1)*12 : page*12]
+	} else if page == pages {
+		apps = apps[(page-1)*12:]
 	}
 
 	// Only allow to view up to 20 pages - More pages = more computation time
@@ -155,12 +116,6 @@ func CollectionHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Reque
 
 	if page > pages {
 		return http.StatusBadRequest, errors.New("Requested inexistant page number")
-	}
-
-	if page != 1 && page != pages {
-		apps = apps[(page-1)*12 : page*12]
-	} else if page == pages {
-		apps = apps[(page-1)*12:]
 	}
 
 	for _, app := range apps {
