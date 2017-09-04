@@ -3,9 +3,10 @@ package main
 import (
 	"database/sql"
 	"os"
+	"testing"
+
 	"pebble-dev/rebblestore-api/db"
 	"pebble-dev/rebblestore-api/rebbleHandlers"
-	"testing"
 
 	"github.com/adams-sarah/test2doc/test"
 	"github.com/gorilla/handlers"

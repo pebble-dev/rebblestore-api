@@ -5,15 +5,14 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+
+	"pebble-dev/rebblestore-api/common"
 	"pebble-dev/rebblestore-api/db"
+	"pebble-dev/rebblestore-api/rebbleHandlers"
 
 	"github.com/gorilla/handlers"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pborman/getopt"
-	//rsapi "github.com/pebble-dev/rebblestore-api"
-
-	"pebble-dev/rebblestore-api/common"
-	"pebble-dev/rebblestore-api/rebbleHandlers"
 )
 
 func main() {
