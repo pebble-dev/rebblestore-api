@@ -40,5 +40,8 @@ func main() {
 	r := rebbleHandlers.Handlers(context)
 	loggedRouter := handlers.LoggingHandler(os.Stdout, r)
 	http.Handle("/", r)
-	http.ListenAndServe(":8080", loggedRouter)
+	err = http.ListenAndServeTLS(":8080", "server.crt", "server.key", loggedRouter)
+	if err != nil {
+		panic("Could not listen and serve TLS: " + err.Error())
+	}
 }

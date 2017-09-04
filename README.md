@@ -17,6 +17,20 @@ mkdir -p $GOPATH/src/pebble-dev
 git clone https://github.com/pebble-dev/rebblestore-api.git $GOPATH/src/pebble-dev/rebblestore-api
 ```
 
+Then, you will need to generate a local (self signed) TLS certificate. The server only supports HTTPS, for obvious security reasons.
+```shell
+cd $GOPATH/src/pebble-dev
+
+# Generating private key
+openssl genrsa -out server.key 2048
+openssl ecparam -genkey -name secp384r1 -out server.key
+
+# Generating certificate
+openssl req -new -x509 -sha256 -key server.key -out server.crt -days 3650
+```
+
+When accessing the website for the first time, you will need to add a security exception (on Firefox) or to tell the browser to proceed anyways (on Chromium), as a self-signed certificate cannot be trusted by your browser.
+
 ## Build Process
 
 ### Backend
@@ -30,7 +44,7 @@ Instructions to setup the database:
 
 1. If you haven't already, download a copy of the Pebble App Store by using [this tool](https://github.com/azertyfun/PebbleAppStoreCrawler). To ease the load on fitbit's servers, you can download it directly [here](https://drive.google.com/file/d/0B1rumprSXUAhTjB1aU9GUFVPUW8/view);
 2. Extract the PebbleAppStore folder to the project directory: `tar -xzf PebbleAppStore.tar.gz -C $GOPATH/src/pebble-dev/rebblestore-api`;
-3. Start `./rebblestore-api` and access http://localhost:8080/admin/rebuild/db to rebuild the database.
+3. Start `./rebblestore-api` and access https://localhost:8080/admin/rebuild/db to rebuild the database.
 
 ## Contributing
 
