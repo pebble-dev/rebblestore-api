@@ -132,6 +132,21 @@ func AdminRebuildDBHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.R
 		return http.StatusInternalServerError, fmt.Errorf("%q: %s", err, sqlStmt)
 	}
 
+	sqlStmt = `
+			drop table if exists users;
+			create table users (
+				id integer not null primary key,
+				username text,
+				passwordHash text,
+				realName text
+			);
+			delete from users;
+		`
+	_, err = dbHandler.Exec(sqlStmt)
+	if err != nil {
+		return http.StatusInternalServerError, fmt.Errorf("%q: %s", err, sqlStmt)
+	}
+
 	tx, err := dbHandler.Begin()
 	if err != nil {
 		return http.StatusInternalServerError, err

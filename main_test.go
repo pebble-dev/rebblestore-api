@@ -25,7 +25,7 @@ func TestMain(m *testing.M) {
 	}
 
 	dbHandler := db.Handler{database}
-	context := &rebbleHandlers.HandlerContext{&dbHandler}
+	context := &rebbleHandlers.HandlerContext{&dbHandler, ""}
 
 	var r = rebbleHandlers.Handlers(context)
 	r.KeepContext = true

@@ -2,7 +2,9 @@ package main
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os"
 
@@ -15,17 +17,38 @@ import (
 	"github.com/pborman/getopt"
 )
 
+type config struct {
+	CaptchaSecret string `json:"captchaSecret"`
+	StoreUrl      string `json:"storeUrl"`
+}
+
 func main() {
+	config := config{
+		StoreUrl: "https://docs.rebble.io",
+	}
+
+	file, err := ioutil.ReadFile("./rebblestore-api.json")
+	if err != nil {
+		panic("Could not load rebblestore-api.json: " + err.Error())
+	}
+	err = json.Unmarshal(file, &config)
+	if err != nil {
+		panic("Could not parse rebblestore-api.json: " + err.Error())
+	}
+
 	var version bool
-	rebbleHandlers.StoreUrl = "http://docs.rebble.io"
+
 	getopt.BoolVarLong(&version, "version", 'V', "Get the current version info")
-	getopt.StringVarLong(&rebbleHandlers.StoreUrl, "store-url", 'u', "Set the store URL (defaults to http://docs.rebble.io)")
+	getopt.StringVarLong(&config.StoreUrl, "store-url", 'u', "Set the store URL (defaults to http://docs.rebble.io)")
+	getopt.StringVarLong(&config.CaptchaSecret, "captcha-secret", 'c', "Set the ReCAPTCHA secret key (registration won't work without it)")
 	getopt.Parse()
 	if version {
 		//fmt.Fprintf(os.Stderr, "Version %s\nBuild Host: %s\nBuild Date: %s\nBuild Hash: %s\n", rsapi.Buildversionstring, rsapi.Buildhost, rsapi.Buildstamp, rsapi.Buildgithash)
 		fmt.Fprintf(os.Stderr, "Version %s\nBuild Host: %s\nBuild Date: %s\nBuild Hash: %s\n", common.Buildversionstring, common.Buildhost, common.Buildstamp, common.Buildgithash)
 		return
 	}
+
+	rebbleHandlers.StoreUrl = config.StoreUrl
 
 	database, err := sql.Open("sqlite3", "./RebbleAppStore.db")
 	if err != nil {
@@ -35,7 +58,7 @@ func main() {
 	dbHandler := db.Handler{database}
 
 	// construct the context that will be injected in to handlers
-	context := &rebbleHandlers.HandlerContext{&dbHandler}
+	context := &rebbleHandlers.HandlerContext{&dbHandler, config.CaptchaSecret}
 
 	r := rebbleHandlers.Handlers(context)
 	loggedRouter := handlers.LoggingHandler(os.Stdout, r)

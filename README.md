@@ -46,6 +46,10 @@ Instructions to setup the database:
 2. Extract the PebbleAppStore folder to the project directory: `tar -xzf PebbleAppStore.tar.gz -C $GOPATH/src/pebble-dev/rebblestore-api`;
 3. Start `./rebblestore-api` and access https://localhost:8080/admin/rebuild/db to rebuild the database.
 
+### ReCAPTCHA
+
+To use the registration function, you will need a ReCAPTCHA key. Just head over to [Google's ReCAPTCHA page](https://www.google.com/recaptcha/admin) and register one, then edit rebblestore-api.json and add your secret key there to `captchaSecret`.
+
 ## Contributing
 
 ### How Do I Help?

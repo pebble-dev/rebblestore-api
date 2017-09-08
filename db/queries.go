@@ -329,3 +329,28 @@ func (handler Handler) GetAuthorCards(id int) (RebbleCards, error) {
 
 	return cards, nil
 }
+
+// AddAccount attempts to create a user account, and returns a user friendly error as well as an actual error (as not to display SQL statements to the user for example).
+func (handler Handler) AddAccount(username string, passwordHash []byte, realName string) (string, error) {
+	tx, err := handler.DB.Begin()
+	if err != nil {
+		return "Internal server error", err
+	}
+
+	rows, err := tx.Query("SELECT username FROM users WHERE username=?", username)
+	if err != nil {
+		return "Internal server error", err
+	}
+	if rows.Next() {
+		return "This username is already taken", errors.New("Username already taken")
+	}
+
+	_, err = tx.Exec("INSERT INTO users(username, passwordHash, realName) VALUES (?, ?, ?, ?)", username, passwordHash, realName)
+	if err != nil {
+		return "Internal server error", err
+	}
+
+	tx.Commit()
+
+	return "", nil
+}
