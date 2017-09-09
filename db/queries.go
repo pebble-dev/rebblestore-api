@@ -345,7 +345,7 @@ func (handler Handler) AddAccount(username string, passwordHash []byte, realName
 		return "This username is already taken", errors.New("Username already taken")
 	}
 
-	_, err = tx.Exec("INSERT INTO users(username, passwordHash, realName) VALUES (?, ?, ?, ?)", username, passwordHash, realName)
+	_, err = tx.Exec("INSERT INTO users(username, passwordHash, realName) VALUES (?, ?, ?)", username, passwordHash, realName)
 	if err != nil {
 		return "Internal server error", err
 	}
