@@ -6,13 +6,24 @@ The account management is homebrew, except the password hashing which is handled
 API
 ---
 
-`/user/register`:
+### `/user/register`
+
+Query:
 ```JSON
 {
     "username": "<username>",
     "password": "<password>",
     "realName": "<Real Name>",
     "captchaResponse": "<reCaptcha response data>"
+}
+```
+
+Response:
+```JSON
+{
+	"success": boolean,
+	"errorMessage": "<error message>",
+	"session_key": "<base64 session key>"
 }
 ```
 
