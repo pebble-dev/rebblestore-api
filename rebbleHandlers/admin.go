@@ -136,9 +136,28 @@ func AdminRebuildDBHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.R
 			drop table if exists users;
 			create table users (
 				id integer not null primary key,
-				username text,
-				passwordHash text,
-				realName text
+				username text not null,
+				passwordHash text not null,
+				realName text not null,
+				disabled integer not null
+			);
+			delete from users;
+
+			drop table if exists userSessions;
+			create table userSessions (
+				sessionKey text not null primary key,
+				userId integer not null,
+				loginTime integer not null,
+				lastSeenTime integer not null
+			);
+			delete from userSessions;
+
+			drop table if exists userLogins;
+			create table userLogins (
+				id integer not null primary key,
+				userId integer not null,
+				time integer not null,
+				success integer not null
 			);
 			delete from users;
 		`

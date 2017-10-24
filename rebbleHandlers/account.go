@@ -24,6 +24,7 @@ type captchaStatus struct {
 type accountCreationStatus struct {
 	Success      bool   `json:"success"`
 	ErrorMessage string `json:"errorMessage"`
+	SessionKey   string `json:"session_key"`
 }
 
 func accountCreationFail(message string, err error, w *http.ResponseWriter) error {
@@ -85,7 +86,8 @@ func AccountRegisterHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.
 		return http.StatusInternalServerError, err
 	}
 
-	userErr, err := ctx.Database.AddAccount(info.Username, passwordHash, info.RealName)
+	// Account creation
+	sessionKey, userErr, err := ctx.Database.AddAccount(info.Username, passwordHash, info.RealName)
 	if err != nil {
 		return http.StatusBadRequest, accountCreationFail(userErr, err, &w)
 	}
@@ -93,6 +95,7 @@ func AccountRegisterHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.
 	status := accountCreationStatus{
 		Success:      true,
 		ErrorMessage: userErr,
+		SessionKey: sessionKey,
 	}
 	data, err := json.MarshalIndent(status, "", "\t")
 	if err != nil {

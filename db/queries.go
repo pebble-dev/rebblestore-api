@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"math/rand"
 	"strings"
 	"time"
 )
@@ -330,27 +331,63 @@ func (handler Handler) GetAuthorCards(id int) (RebbleCards, error) {
 	return cards, nil
 }
 
+func init() {
+	// We need to seed the RNG which is used by generateSessionId()
+	rand.Seed(time.Now().UnixNano())
+}
+
+// generateSessionKey() generates a pseudo-random fixed-length base64 string
+func generateSessionKey() string {
+	const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-_"
+
+	b := make([]byte, 50)
+	for i := range b {
+		b[i] = letters[rand.Intn(len(letters))]
+	}
+
+	return string(b)
+}
+
 // AddAccount attempts to create a user account, and returns a user friendly error as well as an actual error (as not to display SQL statements to the user for example).
-func (handler Handler) AddAccount(username string, passwordHash []byte, realName string) (string, error) {
+func (handler Handler) AddAccount(username string, passwordHash []byte, realName string) (string, string, error) {
 	tx, err := handler.DB.Begin()
 	if err != nil {
-		return "Internal server error", err
+		return "", "Internal server error", err
 	}
 
+	// Check if user exists
 	rows, err := tx.Query("SELECT username FROM users WHERE username=?", username)
 	if err != nil {
-		return "Internal server error", err
+		return "", "Internal server error", err
 	}
 	if rows.Next() {
-		return "This username is already taken", errors.New("Username already taken")
+		return "", "This username is already taken", errors.New("Username already taken")
 	}
 
-	_, err = tx.Exec("INSERT INTO users(username, passwordHash, realName) VALUES (?, ?, ?)", username, passwordHash, realName)
+	// Create user
+	res, err := tx.Exec("INSERT INTO users(username, passwordHash, realName, disabled) VALUES (?, ?, ?, 0)", username, passwordHash, realName)
 	if err != nil {
-		return "Internal server error", err
+		return "", "Internal server error", err
+	}
+	userId, err := res.LastInsertId()
+	if err != nil {
+		return "", "Internal server error", err
+	}
+
+	// Create user session
+	sessionKey := generateSessionKey()
+	_, err = tx.Exec("INSERT INTO userSessions(sessionKey, userId, loginTime, lastSeenTime) VALUES (?, ?, ?, ?)", sessionKey, userId, time.Now().UnixNano(), time.Now().UnixNano())
+	if err != nil {
+		return "", "Internal server error", err
+	}
+
+	// Log successful login attempt
+	_, err = tx.Exec("INSERT INTO userLogins(userId, time, success) VALUES (?, ?, 1)", userId, time.Now().UnixNano())
+	if err != nil {
+		return "", "Internal server error", err
 	}
 
 	tx.Commit()
 
-	return "", nil
+	return sessionKey, "", nil
 }
