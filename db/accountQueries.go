@@ -180,3 +180,26 @@ func (handler Handler) AccountLogin(username string, password string, remoteIp s
 
 	return "", "Invalid password", errors.New("invalid password")
 }
+
+// AccountInformation returns information about the account associated to the given session key
+func (handler Handler) AccountInformation(sessionKey string) (bool, string, string, error) {
+	var userId int
+	row := handler.DB.QueryRow("SELECT userId FROM userSessions WHERE sessionKey=?", sessionKey)
+	err := row.Scan(&userId)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return false, "", "", nil
+		}
+
+		return false, "", "", err
+	}
+
+	var username, realName string
+	row = handler.DB.QueryRow("SELECT username, realName FROM users WHERE id=?", userId)
+	err = row.Scan(&username, &realName)
+	if err != nil {
+		return false, "", "", err
+	}
+
+	return true, username, realName, nil
+}

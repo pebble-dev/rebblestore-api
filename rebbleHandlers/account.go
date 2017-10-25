@@ -17,6 +17,10 @@ type accountInfo struct {
 	CaptchaResponse string `json:"captchaResponse"`
 }
 
+type loginInfo struct {
+	SessionKey string `json:"sessionKey"`
+}
+
 type captchaStatus struct {
 	Success    bool     `json:"success"`
 	ErrorCodes []string `json:"error-codes"`
@@ -33,6 +37,12 @@ type accountLoginStatus struct {
 	ErrorMessage string `json:"errorMessage"`
 	SessionKey   string `json:"sessionKey"`
 	RateLimited  bool   `json:"rateLimited"`
+}
+
+type accountLoggedInStatus struct {
+	LoggedIn bool   `json:"loggedIn"`
+	Username string `json:"username"`
+	RealName string `json:"realName"`
 }
 
 func accountRegisterFail(message string, err error, w *http.ResponseWriter) error {
@@ -182,6 +192,40 @@ func AccountLoginHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Req
 		Success:      true,
 		ErrorMessage: userErr,
 		SessionKey:   sessionKey,
+	}
+	data, err := json.MarshalIndent(status, "", "\t")
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+
+	// Send the JSON object back to the user
+	w.Header().Add("content-type", "application/json")
+	w.Write(data)
+	return http.StatusOK, nil
+}
+
+// AccountStatusHandler displays the status for a given Session Key
+func AccountStatusHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Request) (int, error) {
+	decoder := json.NewDecoder(r.Body)
+
+	// We also use accountInfo. Since this is just a login and not a register, not all fields require to be set (only username and password).
+	// However, if the user is rate-limited, the user will need to complete a CAPTCHA. In this case, this field will also need to be checked.
+	var info loginInfo
+	err := decoder.Decode(&info)
+	if err != nil {
+		return http.StatusBadRequest, err
+	}
+	defer r.Body.Close()
+
+	loggedIn, username, realName, err := ctx.Database.AccountInformation(info.SessionKey)
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+
+	status := accountLoggedInStatus{
+		LoggedIn: loggedIn,
+		Username: username,
+		RealName: realName,
 	}
 	data, err := json.MarshalIndent(status, "", "\t")
 	if err != nil {

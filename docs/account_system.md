@@ -3,6 +3,15 @@ Account system
 
 The account management is homebrew, except the password hashing which is handled by [bcrypt](https://godoc.org/golang.org/x/crypto/bcrypt) (adaptative hashing algorithm).
 
+Expected client behavior
+------------------------
+
+The user can choose to register an account or login to an existing one. Both return a session key (see API below), which must be stored locally (via cookies for instance).
+
+Session keys expire after a certain time spent without being used, or if 5 other sessions have been opened since the last time the key has been used. If a key is expired, a re-login is needed.
+
+The client should then, every time a page is loaded, check the current status of the session by hitting the `/user/status` endpoint (see API below). Actions which require an account to be completed will further require a session key.
+
 API
 ---
 
@@ -54,6 +63,27 @@ Response:
 }
 ```
 If `rateLimited` is `true`, retry login with CAPTCHA.
+
+### `/user/info`
+
+Request information about the (presumably) logged in user. This should be used every time a page is loaded.
+
+Query:
+```JSON
+{
+    "sessionKey": "<session key>"
+}
+```
+
+Response:
+```JSON
+{
+    "loggedIn": boolean,
+    "username": "<username>",
+    "realName": "<Real Name>"
+}
+```
+If the user is not logged in (the sessionKey is invalid or has been disabled, see "Expected Client Behavior"), userName and realName will be blank.
 
 SQL Structure
 -------------
