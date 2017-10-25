@@ -27,6 +27,7 @@ func Handlers(context *HandlerContext) *mux.Router {
 	r.Handle("/dev/apps/search/{query}", routeHandler{context, SearchHandler}).Methods("GET")
 	r.Handle("/dev/author/id/{id}", routeHandler{context, AuthorHandler}).Methods("GET")
 	r.Handle("/user/register", routeHandler{context, AccountRegisterHandler}).Methods("POST")
+	r.Handle("/user/login", routeHandler{context, AccountLoginHandler}).Methods("POST")
 	r.Handle("/admin/rebuild/db", routeHandler{context, AdminRebuildDBHandler}).Host("localhost")
 	r.Handle("/admin/rebuild/images", routeHandler{context, AdminRebuildImagesHandler}).Host("localhost")
 	r.Handle("/admin/version", routeHandler{context, AdminVersionHandler})

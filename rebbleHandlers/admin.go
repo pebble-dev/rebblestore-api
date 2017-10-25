@@ -156,6 +156,7 @@ func AdminRebuildDBHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.R
 			create table userLogins (
 				id integer not null primary key,
 				userId integer not null,
+				remoteIp text not null,
 				time integer not null,
 				success integer not null
 			);

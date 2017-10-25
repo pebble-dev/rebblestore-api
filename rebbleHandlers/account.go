@@ -3,6 +3,7 @@ package rebbleHandlers
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"net/url"
 
@@ -21,14 +22,21 @@ type captchaStatus struct {
 	ErrorCodes []string `json:"error-codes"`
 }
 
-type accountCreationStatus struct {
+type accountRegisterStatus struct {
 	Success      bool   `json:"success"`
 	ErrorMessage string `json:"errorMessage"`
-	SessionKey   string `json:"session_key"`
+	SessionKey   string `json:"sessionKey"`
 }
 
-func accountCreationFail(message string, err error, w *http.ResponseWriter) error {
-	status := accountCreationStatus{
+type accountLoginStatus struct {
+	Success      bool   `json:"success"`
+	ErrorMessage string `json:"errorMessage"`
+	SessionKey   string `json:"sessionKey"`
+	RateLimited  bool   `json:"rateLimited"`
+}
+
+func accountRegisterFail(message string, err error, w *http.ResponseWriter) error {
+	status := accountRegisterStatus{
 		Success:      false,
 		ErrorMessage: message,
 	}
@@ -42,7 +50,47 @@ func accountCreationFail(message string, err error, w *http.ResponseWriter) erro
 	(*w).Header().Add("content-type", "application/json")
 	(*w).Write(data)
 
-	return err
+	log.Println(err)
+
+	return nil
+}
+
+func accountLoginFail(message string, rateLimited bool, err error, w *http.ResponseWriter) error {
+	status := accountLoginStatus{
+		Success:      false,
+		ErrorMessage: message,
+		RateLimited:  rateLimited,
+	}
+
+	data, e := json.MarshalIndent(status, "", "\t")
+	if e != nil {
+		return e
+	}
+
+	// Send the JSON object back to the user
+	(*w).Header().Add("content-type", "application/json")
+	(*w).Write(data)
+
+	log.Println(err)
+
+	return nil
+}
+
+func checkCaptcha(ctx *HandlerContext, captchaResponse string, remoteAddr string) bool {
+	resp, err := http.PostForm("https://www.google.com/recaptcha/api/siteverify", url.Values{"secret": {ctx.CaptchaSecret}, "response": {captchaResponse}, "remoteip": {remoteAddr}})
+	if err != nil {
+		return false
+	}
+
+	var captchaStatus captchaStatus
+	decoder := json.NewDecoder(resp.Body)
+	err = decoder.Decode(&captchaStatus)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+
+	return captchaStatus.Success
 }
 
 // AccountRegisterHandler handles the creation of a user account
@@ -55,30 +103,14 @@ func AccountRegisterHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.
 	}
 	defer r.Body.Close()
 
-	resp, err := http.PostForm("https://www.google.com/recaptcha/api/siteverify", url.Values{"secret": {ctx.CaptchaSecret}, "response": {info.CaptchaResponse}, "remoteip": {r.RemoteAddr}})
-	if err != nil {
-		return http.StatusInternalServerError, err
-	}
-
-	var captchaStatus captchaStatus
-	decoder = json.NewDecoder(resp.Body)
-	err = decoder.Decode(&captchaStatus)
-	if err != nil {
-		return http.StatusInternalServerError, err
-	}
-	defer resp.Body.Close()
-
-	if info.Username == "" || len(info.Username) <= 3 {
-		return http.StatusBadRequest, accountCreationFail("Invalid username", errors.New("Invalid username"), &w)
-	}
-
-	if !captchaStatus.Success {
-		return http.StatusBadRequest, accountCreationFail("Invalid CAPTCHA", errors.New("Invalid CAPTCHA"), &w)
+	captchaSuccess := checkCaptcha(ctx, info.CaptchaResponse, r.RemoteAddr)
+	if !captchaSuccess {
+		return http.StatusBadRequest, accountRegisterFail("Invalid CAPTCHA", errors.New("Invalid CAPTCHA"), &w)
 	}
 
 	// Password strength checking is done user-side with zxcvbn. If they decide, for whatever reason, to bypass that, they are only harming themselves.
 	if len(info.Password) > 255 || len(info.Password) == 0 {
-		return http.StatusBadRequest, accountCreationFail("Invalid password", errors.New("Invalid password"), &w)
+		return http.StatusBadRequest, accountRegisterFail("Invalid password", errors.New("Invalid password"), &w)
 	}
 
 	passwordHash, err := bcrypt.GenerateFromPassword([]byte(info.Password), bcrypt.DefaultCost)
@@ -87,15 +119,69 @@ func AccountRegisterHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.
 	}
 
 	// Account creation
-	sessionKey, userErr, err := ctx.Database.AddAccount(info.Username, passwordHash, info.RealName)
+	sessionKey, userErr, err := ctx.Database.AccountRegister(info.Username, passwordHash, info.RealName, r.RemoteAddr)
 	if err != nil {
-		return http.StatusBadRequest, accountCreationFail(userErr, err, &w)
+		return http.StatusBadRequest, accountRegisterFail(userErr, err, &w)
 	}
 
-	status := accountCreationStatus{
+	status := accountRegisterStatus{
 		Success:      true,
 		ErrorMessage: userErr,
-		SessionKey: sessionKey,
+		SessionKey:   sessionKey,
+	}
+	data, err := json.MarshalIndent(status, "", "\t")
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+
+	// Send the JSON object back to the user
+	w.Header().Add("content-type", "application/json")
+	w.Write(data)
+	return http.StatusOK, nil
+}
+
+// AccountLoginHandler handles the login of a user
+func AccountLoginHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Request) (int, error) {
+	decoder := json.NewDecoder(r.Body)
+
+	// We also use accountInfo. Since this is just a login and not a register, not all fields require to be set (only username and password).
+	// However, if the user is rate-limited, the user will need to complete a CAPTCHA. In this case, this field will also need to be checked.
+	var info accountInfo
+	err := decoder.Decode(&info)
+	if err != nil {
+		return http.StatusBadRequest, err
+	}
+	defer r.Body.Close()
+
+	accountExists, err := ctx.Database.AccountExists(info.Username)
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+
+	if info.Username == "" || len(info.Username) <= 3 || !accountExists {
+		return http.StatusBadRequest, accountLoginFail("Invalid username", false, errors.New("Invalid username"), &w)
+	}
+
+	// Check if user is rate-limited
+	rateLimited, err := ctx.Database.AccountRateLimited(info.Username, r.RemoteAddr)
+	if rateLimited {
+		captchaSuccess := checkCaptcha(ctx, info.CaptchaResponse, r.RemoteAddr)
+		if !captchaSuccess {
+			return http.StatusBadRequest, accountLoginFail("Invalid CAPTCHA", true, errors.New("Invalid CAPTCHA"), &w)
+		}
+	} else if err != nil {
+		return http.StatusInternalServerError, err
+	}
+
+	sessionKey, userErr, err := ctx.Database.AccountLogin(info.Username, info.Password, r.RemoteAddr)
+	if err != nil {
+		return http.StatusBadRequest, accountLoginFail(userErr, rateLimited, err, &w)
+	}
+
+	status := accountLoginStatus{
+		Success:      true,
+		ErrorMessage: userErr,
+		SessionKey:   sessionKey,
 	}
 	data, err := json.MarshalIndent(status, "", "\t")
 	if err != nil {

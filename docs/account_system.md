@@ -8,6 +8,8 @@ API
 
 ### `/user/register`
 
+Attemps to create a user account. For now, no email is needed (though that could change in the future).
+
 Query:
 ```JSON
 {
@@ -23,9 +25,35 @@ Response:
 {
 	"success": boolean,
 	"errorMessage": "<error message>",
-	"session_key": "<base64 session key>"
+	"sessionKey": "<base64 session key>",
 }
 ```
+
+### `/user/login`
+
+Request a new session. This should only be done if the current session key is invalid or missing (on a new device or when cookies were cleared for instance).
+For security reasons, only 5 simultaneous sessions are allowed; the oldest session will automatically be invalidated if a client goes over the limit.
+
+Query:
+```JSON
+{
+    "username": "<username>",
+    "password": "<password>",
+    "captchaResponse": "<reCaptcha response data>"
+}
+```
+`captchaResponse` is only needed when the user or client is rate-limited (too many login attempts in the last hour).
+
+Response:
+```JSON
+{
+	"success": boolean,
+    "rateLimited" boolean,
+	"errorMessage": "<error message>",
+	"sessionKey": "<base64 session key>"
+}
+```
+If `rateLimited` is `true`, retry login with CAPTCHA.
 
 SQL Structure
 -------------
@@ -49,6 +77,7 @@ create table userSessions (
 create table userLogins (
     id integer not null primary key,
     userId integer not null,
+    remoteIp text not null,
     time integer not null,
     success integer not null
 );
