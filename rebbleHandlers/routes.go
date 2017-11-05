@@ -29,6 +29,8 @@ func Handlers(context *HandlerContext) *mux.Router {
 	r.Handle("/user/register", routeHandler{context, AccountRegisterHandler}).Methods("POST")
 	r.Handle("/user/login", routeHandler{context, AccountLoginHandler}).Methods("POST")
 	r.Handle("/user/status", routeHandler{context, AccountStatusHandler}).Methods("POST")
+	r.Handle("/user/update/password", routeHandler{context, AccountUpdatePasswordHandler}).Methods("POST")
+	r.Handle("/user/update/realName", routeHandler{context, AccountUpdateRealNameHandler}).Methods("POST")
 	r.Handle("/admin/rebuild/db", routeHandler{context, AdminRebuildDBHandler}).Host("localhost")
 	r.Handle("/admin/rebuild/images", routeHandler{context, AdminRebuildImagesHandler}).Host("localhost")
 	r.Handle("/admin/version", routeHandler{context, AdminVersionHandler})

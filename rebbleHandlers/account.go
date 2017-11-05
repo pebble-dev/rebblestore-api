@@ -6,8 +6,6 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-
-	"golang.org/x/crypto/bcrypt"
 )
 
 type accountInfo struct {
@@ -19,6 +17,12 @@ type accountInfo struct {
 
 type loginInfo struct {
 	SessionKey string `json:"sessionKey"`
+}
+
+type updateAccountInfo struct {
+	SessionKey string `json:"sessionKey"`
+	Password   string `json:"password"`
+	RealName   string `json:"realName"`
 }
 
 type captchaStatus struct {
@@ -43,6 +47,11 @@ type accountLoggedInStatus struct {
 	LoggedIn bool   `json:"loggedIn"`
 	Username string `json:"username"`
 	RealName string `json:"realName"`
+}
+
+type updateAccountStatus struct {
+	Success      bool   `json:"success"`
+	ErrorMessage string `json:"errorMessage"`
 }
 
 func accountRegisterFail(message string, err error, w *http.ResponseWriter) error {
@@ -123,13 +132,8 @@ func AccountRegisterHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.
 		return http.StatusBadRequest, accountRegisterFail("Invalid password", errors.New("Invalid password"), &w)
 	}
 
-	passwordHash, err := bcrypt.GenerateFromPassword([]byte(info.Password), bcrypt.DefaultCost)
-	if err != nil {
-		return http.StatusInternalServerError, err
-	}
-
 	// Account creation
-	sessionKey, userErr, err := ctx.Database.AccountRegister(info.Username, passwordHash, info.RealName, r.RemoteAddr)
+	sessionKey, userErr, err := ctx.Database.AccountRegister(info.Username, info.Password, info.RealName, r.RemoteAddr)
 	if err != nil {
 		return http.StatusBadRequest, accountRegisterFail(userErr, err, &w)
 	}
@@ -226,6 +230,67 @@ func AccountStatusHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Re
 		LoggedIn: loggedIn,
 		Username: username,
 		RealName: realName,
+	}
+	data, err := json.MarshalIndent(status, "", "\t")
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+
+	// Send the JSON object back to the user
+	w.Header().Add("content-type", "application/json")
+	w.Write(data)
+	return http.StatusOK, nil
+}
+
+// AccountUpdatePasswordHandler updates a user's password
+func AccountUpdatePasswordHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Request) (int, error) {
+	decoder := json.NewDecoder(r.Body)
+
+	var info updateAccountInfo
+	err := decoder.Decode(&info)
+	if err != nil {
+		return http.StatusBadRequest, err
+	}
+	defer r.Body.Close()
+
+	// Password strength checking is done user-side with zxcvbn. If they decide, for whatever reason, to bypass that, they are only harming themselves.
+	if len(info.Password) > 255 || len(info.Password) == 0 {
+		return http.StatusBadRequest, accountRegisterFail("Invalid password", errors.New("Invalid password"), &w)
+	}
+
+	errorMessage, err := ctx.Database.UpdatePassword(info.SessionKey, info.Password)
+
+	status := updateAccountStatus{
+		Success:      err == nil,
+		ErrorMessage: errorMessage,
+	}
+	data, err := json.MarshalIndent(status, "", "\t")
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+
+	// Send the JSON object back to the user
+	w.Header().Add("content-type", "application/json")
+	w.Write(data)
+	return http.StatusOK, nil
+}
+
+// AccountUpdateRealNameHandler updates a user's real name
+func AccountUpdateRealNameHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Request) (int, error) {
+	decoder := json.NewDecoder(r.Body)
+
+	var info updateAccountInfo
+	err := decoder.Decode(&info)
+	if err != nil {
+		return http.StatusBadRequest, err
+	}
+	defer r.Body.Close()
+
+	errorMessage, err := ctx.Database.UpdateRealName(info.SessionKey, info.RealName)
+
+	status := updateAccountStatus{
+		Success:      err == nil,
+		ErrorMessage: errorMessage,
 	}
 	data, err := json.MarshalIndent(status, "", "\t")
 	if err != nil {

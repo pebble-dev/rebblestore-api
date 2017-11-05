@@ -53,7 +53,7 @@ func createSession(tx *sql.Tx, userId int) (string, error) {
 }
 
 // AccountRegister attempts to create a user account, and returns a user friendly error as well as an actual error (as not to display SQL statements to the user for example).
-func (handler Handler) AccountRegister(username string, passwordHash []byte, realName string, remoteIp string) (string, string, error) {
+func (handler Handler) AccountRegister(username string, password string, realName string, remoteIp string) (string, string, error) {
 	tx, err := handler.DB.Begin()
 	if err != nil {
 		return "", "Internal server error", err
@@ -66,6 +66,11 @@ func (handler Handler) AccountRegister(username string, passwordHash []byte, rea
 	}
 	if rows.Next() {
 		return "", "This username is already taken", errors.New("Username already taken")
+	}
+
+	passwordHash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return "", "Internal server error", err
 	}
 
 	// Create user
@@ -181,11 +186,20 @@ func (handler Handler) AccountLogin(username string, password string, remoteIp s
 	return "", "Invalid password", errors.New("invalid password")
 }
 
-// AccountInformation returns information about the account associated to the given session key
-func (handler Handler) AccountInformation(sessionKey string) (bool, string, string, error) {
+func (handler Handler) getAccountId(sessionKey string) (int, error) {
 	var userId int
 	row := handler.DB.QueryRow("SELECT userId FROM userSessions WHERE sessionKey=?", sessionKey)
 	err := row.Scan(&userId)
+	if err != nil {
+		return 0, err
+	}
+
+	return userId, nil
+}
+
+// AccountInformation returns information about the account associated to the given session key
+func (handler Handler) AccountInformation(sessionKey string) (bool, string, string, error) {
+	userId, err := handler.getAccountId(sessionKey)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return false, "", "", nil
@@ -195,11 +209,74 @@ func (handler Handler) AccountInformation(sessionKey string) (bool, string, stri
 	}
 
 	var username, realName string
-	row = handler.DB.QueryRow("SELECT username, realName FROM users WHERE id=?", userId)
+	row := handler.DB.QueryRow("SELECT username, realName FROM users WHERE id=?", userId)
 	err = row.Scan(&username, &realName)
 	if err != nil {
 		return false, "", "", err
 	}
 
 	return true, username, realName, nil
+}
+
+// UpdatePassword updates a user's password and returns a human-readable error as well as an actual error
+func (handler Handler) UpdatePassword(sessionKey string, password string) (string, error) {
+	userId, err := handler.getAccountId(sessionKey)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "Invalid session key", errors.New("Invalid session key")
+		}
+
+		return "Internal server error", err
+	}
+
+	tx, err := handler.DB.Begin()
+	if err != nil {
+		return "Internal server error", err
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return "Internal server error", err
+	}
+
+	tx.Exec("UPDATE users SET passwordHash=? WHERE id=?", hash, userId)
+	if err != nil {
+		return "Internal server error", err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return "Internal server error", err
+	}
+
+	return "", nil
+}
+
+// UpdateRealName updates a user's real name and returns a human-readable error as well as an actual error
+func (handler Handler) UpdateRealName(sessionKey string, realName string) (string, error) {
+	userId, err := handler.getAccountId(sessionKey)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "Invalid session key", errors.New("Invalid session key")
+		}
+
+		return "Internal server error", err
+	}
+
+	tx, err := handler.DB.Begin()
+	if err != nil {
+		return "Internal server error", err
+	}
+
+	tx.Exec("UPDATE users SET realName=? WHERE id=?", realName, userId)
+	if err != nil {
+		return "Internal server error", err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return "Internal server error", err
+	}
+
+	return "", nil
 }

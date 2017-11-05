@@ -17,7 +17,7 @@ API
 
 ### `/user/register`
 
-Attemps to create a user account. For now, no email is needed (though that could change in the future).
+Attemps to create a user account. For now, no email is needed (though that could change in the future). Password strength checking is done client-side.
 
 Query:
 ```JSON
@@ -84,6 +84,46 @@ Response:
 }
 ```
 If the user is not logged in (the sessionKey is invalid or has been disabled, see "Expected Client Behavior"), userName and realName will be blank.
+
+### `/user/update/password`
+
+Change the logged in user's password. Password strength checking is done client-side.
+
+Query:
+```JSON
+{
+    "sessionKey": "<session key>",
+    "password": "<password>"
+}
+```
+
+Response:
+```JSON
+{
+	"success": boolean,
+	"errorMessage": "<error message>"
+}
+```
+
+### `/user/update/realName`
+
+Change the logged in user's real name. Empty field is allowed.
+
+Query:
+```JSON
+{
+    "sessionKey": "<session key>",
+    "realName": "<Real name>"
+}
+```
+
+Response:
+```JSON
+{
+	"success": boolean,
+	"errorMessage": "<error message>"
+}
+```
 
 SQL Structure
 -------------
