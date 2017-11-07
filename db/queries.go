@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -51,49 +52,66 @@ func (handler Handler) Search(query string) (RebbleCards, error) {
 }
 
 // GetAppsForCollection returns list of apps for single collection
-func (handler Handler) GetAppsForCollection(collectionID string) ([]RebbleApplication, error) {
-	rows, err := handler.Query("SELECT apps FROM collections WHERE id=?", collectionID)
-	if err != nil {
-		return nil, err
+func (handler Handler) GetAppsForCollection(collectionID string, sortByPopular bool) ([]RebbleApplication, error) {
+	var order string
+
+	if sortByPopular {
+		order = "thumbs_up"
+	} else {
+		order = "published_date"
 	}
-	if !rows.Next() {
-		return nil, errors.New("Specified collection does not exist")
-	}
+
+	row := handler.QueryRow("SELECT apps FROM collections WHERE id=?", collectionID)
 	var appIdsB []byte
 	var appIds []string
-	err = rows.Scan(&appIdsB)
+	err := row.Scan(&appIdsB)
 	if err != nil {
 		return nil, err
 	}
 	json.Unmarshal(appIdsB, &appIds)
 
-	apps := make([]RebbleApplication, 0)
-	for _, id := range appIds {
-		rows, err = handler.Query("SELECT id, name, type, thumbs_up, screenshots, published_date, supported_platforms FROM apps WHERE id=?", id)
-		if err != nil {
-			return nil, err
-		}
+	for i, appId := range appIds {
+		appIds[i] = "'" + appId + "'"
+	}
 
-		for rows.Next() {
-			app := RebbleApplication{}
-			var t int64
-			var supported_platforms_b []byte
-			var screenshots_b []byte
-			err = rows.Scan(&app.Id, &app.Name, &app.Type, &app.ThumbsUp, &screenshots_b, &t, &supported_platforms_b)
-			if err != nil {
-				return []RebbleApplication{}, err
-			}
-			app.Published.Time = time.Unix(0, t)
-			err = json.Unmarshal(supported_platforms_b, &app.SupportedPlatforms)
-			if err != nil {
-				return []RebbleApplication{}, err
-			}
-			err = json.Unmarshal(screenshots_b, &app.Assets.Screenshots)
-			if err != nil {
-				return []RebbleApplication{}, err
-			}
-			apps = append(apps, app)
+	idList := strings.Join(appIds, ", ")
+
+	// There is no feasible way for idList to contain user generated data, and therefore for it to be a SQL injection vector. But just in case, we strip any non-authorized character
+	reg, err := regexp.Compile("[^a-zA-Z0-9, ']+")
+	if err != nil {
+		return nil, err
+	}
+	idList = reg.ReplaceAllString(idList, "")
+
+	apps := make([]RebbleApplication, 0)
+
+	// It is not possible to give a list or an order via a prepared statement, so this will have to do. We just sanitized idList, so SQL injection isn't a concern.
+	rows, err := handler.Query("SELECT id, name, type, thumbs_up, screenshots, published_date, supported_platforms FROM apps WHERE id IN (" + idList + ") ORDER BY " + order + " DESC")
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	for rows.Next() {
+		app := RebbleApplication{}
+		var t int64
+		var supported_platforms_b []byte
+		var screenshots_b []byte
+		err = rows.Scan(&app.Id, &app.Name, &app.Type, &app.ThumbsUp, &screenshots_b, &t, &supported_platforms_b)
+		if err != nil {
+			return []RebbleApplication{}, err
 		}
+		app.Published.Time = time.Unix(0, t)
+		err = json.Unmarshal(supported_platforms_b, &app.SupportedPlatforms)
+		if err != nil {
+			return []RebbleApplication{}, err
+		}
+		err = json.Unmarshal(screenshots_b, &app.Assets.Screenshots)
+		if err != nil {
+			return []RebbleApplication{}, err
+		}
+		apps = append(apps, app)
 	}
 	return apps, nil
 }
