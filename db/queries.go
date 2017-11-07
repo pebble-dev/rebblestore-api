@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -60,16 +61,10 @@ func (handler Handler) GetAppsForCollection(collectionID string, sortByPopular b
 		order = "published_date"
 	}
 
-	rows, err := handler.Query("SELECT apps FROM collections WHERE id=?", collectionID)
-	if err != nil {
-		return nil, err
-	}
-	if !rows.Next() {
-		return nil, errors.New("Specified collection does not exist")
-	}
+	row := handler.QueryRow("SELECT apps FROM collections WHERE id=?", collectionID)
 	var appIdsB []byte
 	var appIds []string
-	err = rows.Scan(&appIdsB)
+	err := row.Scan(&appIdsB)
 	if err != nil {
 		return nil, err
 	}
@@ -81,13 +76,22 @@ func (handler Handler) GetAppsForCollection(collectionID string, sortByPopular b
 
 	idList := strings.Join(appIds, ", ")
 
-	apps := make([]RebbleApplication, 0)
-
-	// It is not possible to give a list or an order via a prepared statement, so this will have to do. Unless someone managed to change their application ID to a SQL injection, this is perfectly safe.
-	rows, err = handler.Query("SELECT id, name, type, thumbs_up, screenshots, published_date, supported_platforms FROM apps WHERE id IN (" + idList + ") ORDER BY " + order + " DESC")
+	// There is no feasible way for idList to contain user generated data, and therefore for it to be a SQL injection vector. But just in case, we strip any non-authorized character
+	reg, err := regexp.Compile("[^a-zA-Z0-9, ']+")
 	if err != nil {
 		return nil, err
 	}
+	idList = reg.ReplaceAllString(idList, "")
+
+	apps := make([]RebbleApplication, 0)
+
+	// It is not possible to give a list or an order via a prepared statement, so this will have to do. We just sanitized idList, so SQL injection isn't a concern.
+	rows, err := handler.Query("SELECT id, name, type, thumbs_up, screenshots, published_date, supported_platforms FROM apps WHERE id IN (" + idList + ") ORDER BY " + order + " DESC")
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
 
 	for rows.Next() {
 		app := RebbleApplication{}
