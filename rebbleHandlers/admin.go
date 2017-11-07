@@ -171,6 +171,7 @@ func AdminRebuildDBHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.R
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
+	defer tx.Rollback()
 
 	stmt, err := tx.Prepare("INSERT INTO apps(id, name, author_id, tag_ids, description, thumbs_up, type, supported_platforms, published_date, pbw_url, rebble_ready, updated, version, support_url, author_url, source_url, screenshots, banner_url, icon_url, doomsday_backup, versions) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
 	if err != nil {
@@ -285,6 +286,7 @@ func AdminRebuildImagesHandler(ctx *HandlerContext, w http.ResponseWriter, r *ht
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
+	defer tx.Rollback()
 
 	rows, err := tx.Query("SELECT id, screenshots FROM apps")
 	if err != nil {

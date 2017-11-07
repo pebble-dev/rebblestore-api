@@ -58,6 +58,7 @@ func (handler Handler) AccountRegister(username string, password string, realNam
 	if err != nil {
 		return "", "Internal server error", err
 	}
+	defer tx.Rollback()
 
 	// Check if user exists
 	rows, err := tx.Query("SELECT username FROM users WHERE username=?", username)
@@ -152,6 +153,7 @@ func (handler Handler) AccountLogin(username string, password string, remoteIp s
 	if err != nil {
 		return "", "Internal server error", err
 	}
+	defer tx.Rollback()
 
 	var userId int
 	var passwordHash string
@@ -233,6 +235,7 @@ func (handler Handler) UpdatePassword(sessionKey string, password string) (strin
 	if err != nil {
 		return "Internal server error", err
 	}
+	defer tx.Rollback()
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
@@ -267,6 +270,7 @@ func (handler Handler) UpdateRealName(sessionKey string, realName string) (strin
 	if err != nil {
 		return "Internal server error", err
 	}
+	defer tx.Rollback()
 
 	tx.Exec("UPDATE users SET realName=? WHERE id=?", realName, userId)
 	if err != nil {
