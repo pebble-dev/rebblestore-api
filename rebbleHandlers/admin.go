@@ -121,9 +121,7 @@ func AdminRebuildDBHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.R
 				id text not null primary key,
 				name text,
 				color text,
-				apps blob,
-				cache_apps_most_popular blob,
-				cache_time integer
+				apps blob
 			);
 			delete from collections;
 		`
