@@ -244,3 +244,48 @@ Response:
 	]
 }
 ```
+
+SQL Structure
+-------------
+
+```SQL
+create table apps (
+    id text not null primary key,
+    name text,
+    author_id integer,
+    tag_ids blob,
+    description text,
+    thumbs_up integer,
+    type text,
+    supported_platforms blob,
+    published_date integer,
+    pbw_url text,
+    rebble_ready integer,
+    updated integer,
+    version text,
+    support_url text,
+    author_url text,
+    source_url text,
+    screenshots blob,
+    banner_url text,
+    icon_url text,
+    doomsday_backup integer,
+    versions blob
+);
+
+create table authors (
+    id text not null primary key,
+    name text
+);
+
+create table collections (
+    id text not null primary key,
+    name text,
+    color text,
+    apps blob
+);
+```
+
+* `apps` contains information about specific apps;
+* `authors` contains information about specific authors;
+* `collections` contains a list of all applications belonging to said applications, because generating such a list on the fly from blob'd data from the `tag_ids` field in `apps` would be ridiculously expensive.
