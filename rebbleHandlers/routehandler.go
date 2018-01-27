@@ -10,8 +10,8 @@ import (
 // HandlerContext is our struct for storing the data we want to inject in to each handler
 // we can also add things like authorization level, user information, templates, etc.
 type HandlerContext struct {
-	Database      *db.Handler
-	CaptchaSecret string
+	Database *db.Handler
+	SSos     []Sso
 }
 
 // routeHandler is a struct that implements http.Handler, allowing us to inject a custom context

@@ -129,7 +129,7 @@ func (pi *PebbleIcons) UnmarshalJSON(b []byte) error {
 	return json.Unmarshal(b, (*(map[string]string))(pi))
 }
 
-func parseApp(path string, authors *map[string]int, lastAuthorId *int, collections *map[string]db.RebbleCollection) (*db.RebbleApplication, *[]db.RebbleVersion, error) {
+func parseApp(path string, users *map[string]int, lastAuthorId *int, collections *map[string]db.RebbleCollection) (*db.RebbleApplication, *[]db.RebbleVersion, error) {
 	f, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, nil, err
@@ -148,8 +148,8 @@ func parseApp(path string, authors *map[string]int, lastAuthorId *int, collectio
 	}
 
 	// Create author if it doesn't exist
-	if _, ok := (*authors)[data.Apps[0].Author]; !ok {
-		(*authors)[data.Apps[0].Author] = *lastAuthorId + 1
+	if _, ok := (*users)[data.Apps[0].Author]; !ok {
+		(*users)[data.Apps[0].Author] = *lastAuthorId + 1
 		*lastAuthorId = *lastAuthorId + 1
 	}
 
@@ -197,7 +197,7 @@ func parseApp(path string, authors *map[string]int, lastAuthorId *int, collectio
 	app.ThumbsUp = data.Apps[0].Hearts
 	app.Type = data.Apps[0].Type
 	app.SupportedPlatforms = supportedPlatforms
-	app.Author = db.RebbleAuthor{(*authors)[data.Apps[0].Author], data.Apps[0].Author}
+	app.Author = db.RebbleAuthor{(*users)[data.Apps[0].Author], data.Apps[0].Author}
 	app.AppInfo.PbwUrl = data.Apps[0].Release.PbwUrl
 	app.AppInfo.RebbleReady = false
 	app.AppInfo.Updated = data.Apps[0].Release.Published

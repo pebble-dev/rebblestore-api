@@ -6,47 +6,70 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strings"
+	"time"
+
+	"github.com/dgrijalva/jwt-go"
 )
 
-type accountInfo struct {
-	Username        string `json:"username"`
-	Password        string `json:"password"`
-	RealName        string `json:"realName"`
-	CaptchaResponse string `json:"captchaResponse"`
+// Sso is a JSON object containing information about a specific OpenID SSO provider
+type Sso struct {
+	Name         string `json:"name"`
+	ClientID     string `json:"client_id"`
+	ClientSecret string `json:"client_secret"`
+	DiscoverURI  string `json:"discover_uri"`
+	RedirectURI  string `json:"redirect_uri"`
+
+	Discovery Discovery
 }
 
-type loginInfo struct {
-	SessionKey string `json:"sessionKey"`
+// Discovery lists all the API endpoints for a given SSO
+// https://developers.google.com/identity/protocols/OpenIDConnect#discovery
+// Only the relevant fields will be filled
+type Discovery struct {
+	TokenEndpoint    string `json:"token_endpoint"`
+	UserinfoEndpoint string `json:"userinfo_endpoint"`
+	JwksURI          string `json:"jwks_uri"`
 }
 
-type updateAccountInfo struct {
-	SessionKey string `json:"sessionKey"`
-	Password   string `json:"password"`
-	RealName   string `json:"realName"`
+type key struct {
+	Kty string `json:"kty"`
+	Alg string `json:"alg"`
+	Use string `json:"use"`
+	Kid string `json:"kid"`
+	N   string `json:"n"`
+	E   string `json:"e"`
 }
 
-type captchaStatus struct {
-	Success    bool     `json:"success"`
-	ErrorCodes []string `json:"error-codes"`
+type certsList struct {
+	Keys []key `json:"keys"`
 }
 
-type accountRegisterStatus struct {
-	Success      bool   `json:"success"`
-	ErrorMessage string `json:"errorMessage"`
-	SessionKey   string `json:"sessionKey"`
+// This is the response from the exchange of the authorization code for access and ID tokens
+type tokensStatus struct {
+	AccessToken string `json:"access_token"`
+	IdToken     string `json:"id_token"`
+	ExpiresIn   int    `json:"expires_in"`
+	TokenType   string `json:"token_type"`
+
+	Error            string `json:"error"`
+	ErrorDescription string `json:"error_description"`
+}
+
+type accountLogin struct {
+	Code         string `json:"code"`
+	AuthProvider string `json:"authProvider"`
 }
 
 type accountLoginStatus struct {
+	SessionKey   string `json:"sessionKey"`
 	Success      bool   `json:"success"`
 	ErrorMessage string `json:"errorMessage"`
-	SessionKey   string `json:"sessionKey"`
-	RateLimited  bool   `json:"rateLimited"`
 }
 
-type accountLoggedInStatus struct {
-	LoggedIn bool   `json:"loggedIn"`
-	Username string `json:"username"`
-	RealName string `json:"realName"`
+type updateAccount struct {
+	SessionKey string `json:"sessionKey"`
+	Name       string `json:"name"`
 }
 
 type updateAccountStatus struct {
@@ -54,31 +77,19 @@ type updateAccountStatus struct {
 	ErrorMessage string `json:"errorMessage"`
 }
 
-func accountRegisterFail(message string, err error, w *http.ResponseWriter) error {
-	status := accountRegisterStatus{
-		Success:      false,
-		ErrorMessage: message,
-	}
-
-	data, e := json.MarshalIndent(status, "", "\t")
-	if e != nil {
-		return e
-	}
-
-	// Send the JSON object back to the user
-	(*w).Header().Add("content-type", "application/json")
-	(*w).Write(data)
-
-	log.Println(err)
-
-	return nil
+type auth struct {
+	SessionKey string `json:"sessionKey"`
 }
 
-func accountLoginFail(message string, rateLimited bool, err error, w *http.ResponseWriter) error {
+type accountInfo struct {
+	LoggedIn bool   `json:"loggedIn"`
+	Name     string `json:"name"`
+}
+
+func accountLoginFail(message string, err error, w *http.ResponseWriter) error {
 	status := accountLoginStatus{
 		Success:      false,
 		ErrorMessage: message,
-		RateLimited:  rateLimited,
 	}
 
 	data, e := json.MarshalIndent(status, "", "\t")
@@ -95,101 +106,121 @@ func accountLoginFail(message string, rateLimited bool, err error, w *http.Respo
 	return nil
 }
 
-func checkCaptcha(ctx *HandlerContext, captchaResponse string, remoteAddr string) bool {
-	resp, err := http.PostForm("https://www.google.com/recaptcha/api/siteverify", url.Values{"secret": {ctx.CaptchaSecret}, "response": {captchaResponse}, "remoteip": {remoteAddr}})
-	if err != nil {
-		return false
-	}
-
-	var captchaStatus captchaStatus
-	decoder := json.NewDecoder(resp.Body)
-	err = decoder.Decode(&captchaStatus)
-	if err != nil {
-		return false
-	}
-	defer resp.Body.Close()
-
-	return captchaStatus.Success
+var certs = certsList{
+	Keys: []key{},
 }
 
-// AccountRegisterHandler handles the creation of a user account
-func AccountRegisterHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Request) (int, error) {
-	decoder := json.NewDecoder(r.Body)
-	var info accountInfo
-	err := decoder.Decode(&info)
+func findKey(kid string) (key, error) {
+	foundKey := false
+	var key key
+	for _, k := range certs.Keys {
+		if k.Kid == kid {
+			foundKey = true
+			key = k
+			break
+		}
+	}
+
+	if foundKey {
+		return key, nil
+	}
+
+	return key, errors.New("Key not found")
+}
+
+func parseJwtToken(discovery Discovery, encryptedToken string) (jwt.MapClaims, error) {
+	resp, err := http.Get(discovery.JwksURI)
 	if err != nil {
-		return http.StatusBadRequest, err
+		return nil, err
 	}
-	defer r.Body.Close()
-
-	captchaSuccess := checkCaptcha(ctx, info.CaptchaResponse, r.RemoteAddr)
-	if !captchaSuccess {
-		return http.StatusBadRequest, accountRegisterFail("Invalid CAPTCHA", errors.New("Invalid CAPTCHA"), &w)
+	if resp.StatusCode/100 != 2 {
+		return nil, err
 	}
 
-	// Password strength checking is done user-side with zxcvbn. If they decide, for whatever reason, to bypass that, they are only harming themselves.
-	if len(info.Password) > 255 || len(info.Password) == 0 {
-		return http.StatusBadRequest, accountRegisterFail("Invalid password", errors.New("Invalid password"), &w)
-	}
+	token, err := jwt.Parse(encryptedToken, func(token *jwt.Token) (interface{}, error) {
+		key, err := findKey(token.Header["kid"].(string))
 
-	// Account creation
-	sessionKey, userErr, err := ctx.Database.AccountRegister(info.Username, info.Password, info.RealName, r.RemoteAddr)
-	if err != nil {
-		return http.StatusBadRequest, accountRegisterFail(userErr, err, &w)
-	}
+		// We didn't found a suitable decryption key, but it might just be because they have been updated (should happen about once a day)
+		if err != nil {
+			decoder := json.NewDecoder(resp.Body)
+			err = decoder.Decode(&certs)
+			if err != nil {
+				return nil, err
+			}
+			defer resp.Body.Close()
 
-	status := accountRegisterStatus{
-		Success:      true,
-		ErrorMessage: userErr,
-		SessionKey:   sessionKey,
-	}
-	data, err := json.MarshalIndent(status, "", "\t")
-	if err != nil {
-		return http.StatusInternalServerError, err
-	}
+			key, err = findKey(token.Header["kid"].(string))
+			if err != nil {
+				return nil, errors.New("Could not find suitable decryption key for JWT token")
+			}
+		}
 
-	// Send the JSON object back to the user
-	w.Header().Add("content-type", "application/json")
-	w.Write(data)
-	return http.StatusOK, nil
+		return []byte(key.E), nil
+	})
+
+	return token.Claims.(jwt.MapClaims), nil
 }
 
 // AccountLoginHandler handles the login of a user
 func AccountLoginHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Request) (int, error) {
 	decoder := json.NewDecoder(r.Body)
 
-	// We also use accountInfo. Since this is just a login and not a register, not all fields require to be set (only username and password).
-	// However, if the user is rate-limited, the user will need to complete a CAPTCHA. In this case, this field will also need to be checked.
-	var info accountInfo
-	err := decoder.Decode(&info)
+	var loginInformation accountLogin
+	err := decoder.Decode(&loginInformation)
 	if err != nil {
-		return http.StatusBadRequest, err
+		return http.StatusBadRequest, accountLoginFail("Internal server error: Server could not parse message", err, &w)
 	}
 	defer r.Body.Close()
 
-	accountExists, err := ctx.Database.AccountExists(info.Username)
-	if err != nil {
-		return http.StatusInternalServerError, err
-	}
-
-	if info.Username == "" || len(info.Username) <= 3 || !accountExists {
-		return http.StatusBadRequest, accountLoginFail("Invalid username", false, errors.New("Invalid username"), &w)
-	}
-
-	// Check if user is rate-limited
-	rateLimited, err := ctx.Database.AccountRateLimited(info.Username, r.RemoteAddr)
-	if rateLimited {
-		captchaSuccess := checkCaptcha(ctx, info.CaptchaResponse, r.RemoteAddr)
-		if !captchaSuccess {
-			return http.StatusBadRequest, accountLoginFail("Invalid CAPTCHA", true, errors.New("Invalid CAPTCHA"), &w)
+	var sso Sso
+	foundSso := false
+	for _, s := range ctx.SSos {
+		if s.Name == loginInformation.AuthProvider {
+			sso = s
+			foundSso = true
 		}
-	} else if err != nil {
-		return http.StatusInternalServerError, err
 	}
 
-	sessionKey, userErr, err := ctx.Database.AccountLogin(info.Username, info.Password, r.RemoteAddr)
+	if !foundSso {
+		return http.StatusBadRequest, accountLoginFail("Invalid SSO provider", errors.New("Invalid SSO provider"), &w)
+	}
+
+	v := url.Values{}
+	v.Add("code", loginInformation.Code)
+	v.Add("client_id", sso.ClientID)
+	v.Add("client_secret", sso.ClientSecret)
+	v.Add("redirect_uri", sso.RedirectURI)
+	v.Add("grant_type", "authorization_code")
+	resp, err := http.Post(sso.Discovery.TokenEndpoint, "application/x-www-form-urlencoded", strings.NewReader(v.Encode()))
 	if err != nil {
-		return http.StatusBadRequest, accountLoginFail(userErr, rateLimited, err, &w)
+		return http.StatusInternalServerError, accountLoginFail("Internal server error: Could not exchange tokens", err, &w)
+	}
+
+	decoder = json.NewDecoder(resp.Body)
+	var tokensStatus tokensStatus
+	err = decoder.Decode(&tokensStatus)
+	if err != nil {
+		return http.StatusInternalServerError, accountLoginFail("Internal server error: Could not decode token information", err, &w)
+	}
+	defer resp.Body.Close()
+
+	if tokensStatus.Error != "" {
+		return http.StatusInternalServerError, accountLoginFail("Internal server error: Could not exchange tokens", errors.New("Could not exchange tokens: "+tokensStatus.Error+" ("+tokensStatus.ErrorDescription+")"), &w)
+	}
+
+	claims, err := parseJwtToken(sso.Discovery, tokensStatus.IdToken)
+	if err != nil {
+		return http.StatusInternalServerError, accountLoginFail("Internal server error: Could not decode token information", err, &w)
+	}
+
+	var name string
+	if n, ok := claims["name"]; ok {
+		name = n.(string)
+	}
+
+	sessionKey, userErr, err := ctx.Database.AccountLoginOrRegister(sso.Name, claims["sub"].(string), name, tokensStatus.AccessToken, int64(tokensStatus.ExpiresIn)+time.Now().Unix(), r.RemoteAddr)
+	if err != nil {
+		return http.StatusBadRequest, accountLoginFail(userErr, err, &w)
 	}
 
 	status := accountLoginStatus{
@@ -208,30 +239,27 @@ func AccountLoginHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Req
 	return http.StatusOK, nil
 }
 
-// AccountStatusHandler displays the status for a given Session Key
-func AccountStatusHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Request) (int, error) {
+// AccountInfoHandler displays the account information for a given Session Key
+func AccountInfoHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Request) (int, error) {
 	decoder := json.NewDecoder(r.Body)
 
-	// We also use accountInfo. Since this is just a login and not a register, not all fields require to be set (only username and password).
-	// However, if the user is rate-limited, the user will need to complete a CAPTCHA. In this case, this field will also need to be checked.
-	var info loginInfo
-	err := decoder.Decode(&info)
+	var auth auth
+	err := decoder.Decode(&auth)
 	if err != nil {
 		return http.StatusBadRequest, err
 	}
 	defer r.Body.Close()
 
-	loggedIn, username, realName, err := ctx.Database.AccountInformation(info.SessionKey)
+	loggedIn, name, err := ctx.Database.AccountInformation(auth.SessionKey)
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
 
-	status := accountLoggedInStatus{
+	info := accountInfo{
 		LoggedIn: loggedIn,
-		Username: username,
-		RealName: realName,
+		Name:     name,
 	}
-	data, err := json.MarshalIndent(status, "", "\t")
+	data, err := json.MarshalIndent(info, "", "\t")
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
@@ -242,51 +270,18 @@ func AccountStatusHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Re
 	return http.StatusOK, nil
 }
 
-// AccountUpdatePasswordHandler updates a user's password
-func AccountUpdatePasswordHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Request) (int, error) {
+// AccountUpdateNameHandler updates a user's real name
+func AccountUpdateNameHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Request) (int, error) {
 	decoder := json.NewDecoder(r.Body)
 
-	var info updateAccountInfo
+	var info updateAccount
 	err := decoder.Decode(&info)
 	if err != nil {
 		return http.StatusBadRequest, err
 	}
 	defer r.Body.Close()
 
-	// Password strength checking is done user-side with zxcvbn. If they decide, for whatever reason, to bypass that, they are only harming themselves.
-	if len(info.Password) > 255 || len(info.Password) == 0 {
-		return http.StatusBadRequest, accountRegisterFail("Invalid password", errors.New("Invalid password"), &w)
-	}
-
-	errorMessage, err := ctx.Database.UpdatePassword(info.SessionKey, info.Password)
-
-	status := updateAccountStatus{
-		Success:      err == nil,
-		ErrorMessage: errorMessage,
-	}
-	data, err := json.MarshalIndent(status, "", "\t")
-	if err != nil {
-		return http.StatusInternalServerError, err
-	}
-
-	// Send the JSON object back to the user
-	w.Header().Add("content-type", "application/json")
-	w.Write(data)
-	return http.StatusOK, nil
-}
-
-// AccountUpdateRealNameHandler updates a user's real name
-func AccountUpdateRealNameHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Request) (int, error) {
-	decoder := json.NewDecoder(r.Body)
-
-	var info updateAccountInfo
-	err := decoder.Decode(&info)
-	if err != nil {
-		return http.StatusBadRequest, err
-	}
-	defer r.Body.Close()
-
-	errorMessage, err := ctx.Database.UpdateRealName(info.SessionKey, info.RealName)
+	errorMessage, err := ctx.Database.UpdateName(info.SessionKey, info.Name)
 
 	status := updateAccountStatus{
 		Success:      err == nil,

@@ -156,7 +156,7 @@ func (handler Handler) GetAllApps(sortby string, ascending bool, offset int, lim
 	rows, err := handler.Query(`
 		SELECT apps.name, authors.name, apps.icon_url, apps.id, apps.thumbs_up, apps.published_date
 		FROM apps
-		JOIN authors ON apps.author_id = authors.id
+		JOIN users ON apps.author_id = users.id
 		ORDER BY `+orderCol+" "+order+`
 		LIMIT ?
 		OFFSET ?
@@ -178,7 +178,7 @@ func (handler Handler) GetAllApps(sortby string, ascending bool, offset int, lim
 
 // GetApp returns a specific app
 func (handler Handler) GetApp(id string) (RebbleApplication, error) {
-	row := handler.QueryRow("SELECT apps.id, apps.name, apps.author_id, authors.name, apps.tag_ids, apps.description, apps.thumbs_up, apps.type, apps.supported_platforms, apps.published_date, apps.pbw_url, apps.rebble_ready, apps.updated, apps.version, apps.support_url, apps.author_url, apps.source_url, apps.screenshots, apps.banner_url, apps.icon_url, apps.doomsday_backup FROM apps JOIN authors ON apps.author_id = authors.id WHERE apps.id=?", id)
+	row := handler.QueryRow("SELECT apps.id, apps.name, apps.author_id, users.name, apps.tag_ids, apps.description, apps.thumbs_up, apps.type, apps.supported_platforms, apps.published_date, apps.pbw_url, apps.rebble_ready, apps.updated, apps.version, apps.support_url, apps.author_url, apps.source_url, apps.screenshots, apps.banner_url, apps.icon_url, apps.doomsday_backup FROM apps JOIN users ON apps.author_id = users.id WHERE apps.id=?", id)
 
 	app := RebbleApplication{}
 	var supportedPlatforms_b []byte

@@ -46,9 +46,11 @@ Instructions to setup the database:
 2. Extract the PebbleAppStore folder to the project directory: `tar -xzf PebbleAppStore.tar.gz -C $GOPATH/src/pebble-dev/rebblestore-api`;
 3. Start `./rebblestore-api` and access https://localhost:8080/admin/rebuild/db to rebuild the database.
 
-### ReCAPTCHA
+### Configuration
 
-To use the registration function, you will need a ReCAPTCHA key. Just head over to [Google's ReCAPTCHA page](https://www.google.com/recaptcha/admin) and register one, then edit rebblestore-api.json and add your secret key there to `captchaSecret`.
+To prevent XSS, we set a CORS header. Set the `storeUrl` key in `rebblestore-api.json` to `http://localhost:8081`.
+
+To allow user to authenticate themselves, you will need to get OAuth2 keys for your OpenID providers. Then, fill the `client_id` and `client_secret` fields in the `rebblestore-api.json` file.
 
 ## Contributing
 
@@ -60,12 +62,13 @@ If this is your first time contributing to an Open-Source project, you can [read
 
 Please [format your code with go fmt](https://blog.golang.org/go-fmt-your-code) and run `go test` before committing your changes. Some editor plugins (such as vim-go) should be able to do this automatically before save.
 
+You should start by checking the `docs/` folder!
 
 ### Code Structure
 
 * The core of the backend is an HTTP server powered by [Go's http library](https://golang.org/pkg/net/http/) as well as [the gorilla/mux URL router and dispatcher](https://github.com/gorilla/mux);
-* URLs are routed in `routes.go` (each URL gets its custom handler across multiple files);
-* When a valid URL is accessed, the corresponding handler is called. For example, `{server}/admin/version` is served by `AdminVersionHandler` in `admin.go`;
-* `admin.go` serves the database builder (used the first time you run the backend, or every time you add new columns to the DB that require data from the Pebble App Store archive);
-* `application.go` defines application structures (namely `RebbleApplication`), populates them, and handles most requests pertaining to the applications themselves;
-* `boot.go` handles the mobile application URI bootstrap, as [described on the wiki](https://github.com/pebble-dev/wiki/wiki/Mobile-Application-URI-Bootstrap).
+* URLs are routed in `rebbleHandlers/routes.go` (each URL gets its custom handler across multiple files);
+* When a valid URL is accessed, the corresponding handler is called. For example, `{server}/admin/version` is served by `AdminVersionHandler` in `rebbleHandlers/admin.go`;
+* `rebbleHandlers/admin.go` serves the database builder (used the first time you run the backend, or every time you add new columns to the DB that require data from the Pebble App Store archive);
+* `rebbleHandlers/application.go` defines application structures (namely `RebbleApplication`), populates them, and handles most requests pertaining to the applications themselves;
+* `rebbleHandlers/boot.go` handles the mobile application URI bootstrap, as [described on the wiki](https://github.com/pebble-dev/wiki/wiki/Mobile-Application-URI-Bootstrap).

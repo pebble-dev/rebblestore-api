@@ -5,8 +5,6 @@ import (
 	"errors"
 	"math/rand"
 	"time"
-
-	"golang.org/x/crypto/bcrypt"
 )
 
 func init() {
@@ -26,7 +24,7 @@ func generateSessionKey() string {
 	return string(b)
 }
 
-func createSession(tx *sql.Tx, userId int) (string, error) {
+func createSession(tx *sql.Tx, userId int, accessToken string, expires int64) (string, error) {
 	sessionKey := generateSessionKey()
 
 	// We check that we have no more than 5 active sessions at a time (for security reasons). Otherwise, we delete the oldest one.
@@ -44,7 +42,7 @@ func createSession(tx *sql.Tx, userId int) (string, error) {
 		}
 	}
 
-	_, err = tx.Exec("INSERT INTO userSessions(sessionKey, userId, loginTime, lastSeenTime) VALUES (?, ?, ?, ?)", sessionKey, userId, time.Now().UnixNano(), time.Now().UnixNano())
+	_, err = tx.Exec("INSERT INTO userSessions(sessionKey, userId, access_token, expires) VALUES (?, ?, ?, ?)", sessionKey, userId, accessToken, expires)
 	if err != nil {
 		return "", err
 	}
@@ -52,41 +50,40 @@ func createSession(tx *sql.Tx, userId int) (string, error) {
 	return sessionKey, nil
 }
 
-// AccountRegister attempts to create a user account, and returns a user friendly error as well as an actual error (as not to display SQL statements to the user for example).
-func (handler Handler) AccountRegister(username string, password string, realName string, remoteIp string) (string, string, error) {
+// AccountLoginOrRegister attempts to login (or, if the user doesn't yet exist, create a user account), and returns a user friendly error as well as an actual error (as not to display SQL statements to the user for example).
+func (handler Handler) AccountLoginOrRegister(provider string, sub string, name string, accessToken string, expires int64, remoteIp string) (string, string, error) {
 	tx, err := handler.DB.Begin()
 	if err != nil {
 		return "", "Internal server error", err
 	}
 	defer tx.Rollback()
 
-	// Check if user exists
-	rows, err := tx.Query("SELECT username FROM users WHERE username=?", username)
+	row := tx.QueryRow("SELECT id, disabled FROM users WHERE provider=? AND sub=?", provider, sub)
+
+	var userId int64
+	disabled := false
+	err = row.Scan(&userId, &disabled)
 	if err != nil {
-		return "", "Internal server error", err
-	}
-	if rows.Next() {
-		return "", "This username is already taken", errors.New("Username already taken")
+		// User doesn't exist, create account
+
+		// Create user
+		res, err := tx.Exec("INSERT INTO users(provider, sub, name, pebbleMirror, disabled) VALUES (?, ?, ?, 0, 0)", provider, sub, name)
+		if err != nil {
+			return "", "Internal server error", err
+		}
+		userId, err = res.LastInsertId()
+		if err != nil {
+			return "", "Internal server error", err
+		}
 	}
 
-	passwordHash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		return "", "Internal server error", err
-	}
-
-	// Create user
-	res, err := tx.Exec("INSERT INTO users(username, passwordHash, realName, disabled) VALUES (?, ?, ?, 0)", username, passwordHash, realName)
-	if err != nil {
-		return "", "Internal server error", err
-	}
-	userId, err := res.LastInsertId()
-	if err != nil {
-		return "", "Internal server error", err
+	if disabled {
+		return "", "Account is disabled", errors.New("cannot login; account is disabled")
 	}
 
 	// Create user session
 
-	sessionKey, err := createSession(tx, int(userId))
+	sessionKey, err := createSession(tx, int(userId), accessToken, expires)
 	if err != nil {
 		return "", "Internal server error", err
 	}
@@ -103,9 +100,9 @@ func (handler Handler) AccountRegister(username string, password string, realNam
 }
 
 // AccountExists checks if an account exists
-func (handler Handler) AccountExists(username string) (bool, error) {
+func (handler Handler) AccountExists(provider string, sub string) (bool, error) {
 	var userId int
-	row := handler.DB.QueryRow("SELECT id FROM users WHERE username=?", username)
+	row := handler.DB.QueryRow("SELECT id FROM users WHERE provider=? AND sub=?", provider, sub)
 	err := row.Scan(&userId)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -116,76 +113,6 @@ func (handler Handler) AccountExists(username string) (bool, error) {
 	}
 
 	return true, nil
-}
-
-// AccountRateLimited checks if an account is rate limited (too many recently failed logins)
-func (handler Handler) AccountRateLimited(username string, remoteIp string) (bool, error) {
-	var userId int
-	row := handler.DB.QueryRow("SELECT id FROM users WHERE username=?", username)
-	err := row.Scan(&userId)
-	if err != nil {
-		return false, err
-	}
-
-	// Get all login attempts for user in last hour
-	var countUser int
-	row = handler.DB.QueryRow("SELECT count(*) FROM userLogins WHERE userId=? AND time >= ? - 3600000000000", userId, time.Now().UnixNano())
-	err = row.Scan(&countUser)
-	if err != nil {
-		return false, err
-	}
-
-	// Get all login attempts for client in last hour
-	var countClient int
-	row = handler.DB.QueryRow("SELECT count(*) FROM userLogins WHERE remoteIp=? AND time >= ? - 3600000000000", remoteIp, time.Now().UnixNano())
-	err = row.Scan(&countClient)
-	if err != nil {
-		return false, err
-	}
-
-	// Rate limited if more than 10 login attemps
-	return countUser > 10 || countClient > 10, nil
-}
-
-// AccountLogin returns a new session key, as well as a user-friendly error and an actual error
-func (handler Handler) AccountLogin(username string, password string, remoteIp string) (string, string, error) {
-	tx, err := handler.DB.Begin()
-	if err != nil {
-		return "", "Internal server error", err
-	}
-	defer tx.Rollback()
-
-	var userId int
-	var passwordHash string
-	var disabled bool
-	row := handler.DB.QueryRow("SELECT id, passwordHash, disabled FROM users WHERE username=?", username)
-	err = row.Scan(&userId, &passwordHash, &disabled)
-	if err != nil {
-		return "", "Internal server error", err
-	}
-
-	if disabled {
-		return "", "Account is disabled", errors.New("cannot login; account is disabled")
-	}
-
-	success := bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(password)) == nil
-
-	tx.Exec("INSERT INTO userLogins(userId, remoteIp, time, success) VALUES (?, ?, ?, ?)", userId, remoteIp, time.Now().UnixNano(), success)
-
-	if success {
-		sessionKey, err := createSession(tx, userId)
-		tx.Commit()
-
-		if err != nil {
-			return "", "Internal server error", err
-		}
-
-		return sessionKey, "", nil
-	}
-
-	tx.Commit()
-
-	return "", "Invalid password", errors.New("invalid password")
 }
 
 func (handler Handler) getAccountId(sessionKey string) (int, error) {
@@ -200,28 +127,32 @@ func (handler Handler) getAccountId(sessionKey string) (int, error) {
 }
 
 // AccountInformation returns information about the account associated to the given session key
-func (handler Handler) AccountInformation(sessionKey string) (bool, string, string, error) {
+func (handler Handler) AccountInformation(sessionKey string) (bool, string, error) {
 	userId, err := handler.getAccountId(sessionKey)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return false, "", "", nil
+			return false, "", nil
 		}
 
-		return false, "", "", err
+		return false, "", err
 	}
 
-	var username, realName string
-	row := handler.DB.QueryRow("SELECT username, realName FROM users WHERE id=?", userId)
-	err = row.Scan(&username, &realName)
+	var name, provider, sub string
+	row := handler.DB.QueryRow("SELECT name, provider, sub FROM users WHERE id=?", userId)
+	err = row.Scan(&name, &provider, &sub)
 	if err != nil {
-		return false, "", "", err
+		return false, "", err
 	}
 
-	return true, username, realName, nil
+	if name == "" {
+		return true, provider + "_" + sub, nil
+	}
+
+	return true, name, nil
 }
 
-// UpdatePassword updates a user's password and returns a human-readable error as well as an actual error
-func (handler Handler) UpdatePassword(sessionKey string, password string) (string, error) {
+// UpdateName updates a user's name and returns a human-readable error as well as an actual error
+func (handler Handler) UpdateName(sessionKey string, name string) (string, error) {
 	userId, err := handler.getAccountId(sessionKey)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -237,42 +168,7 @@ func (handler Handler) UpdatePassword(sessionKey string, password string) (strin
 	}
 	defer tx.Rollback()
 
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		return "Internal server error", err
-	}
-
-	tx.Exec("UPDATE users SET passwordHash=? WHERE id=?", hash, userId)
-	if err != nil {
-		return "Internal server error", err
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		return "Internal server error", err
-	}
-
-	return "", nil
-}
-
-// UpdateRealName updates a user's real name and returns a human-readable error as well as an actual error
-func (handler Handler) UpdateRealName(sessionKey string, realName string) (string, error) {
-	userId, err := handler.getAccountId(sessionKey)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return "Invalid session key", errors.New("Invalid session key")
-		}
-
-		return "Internal server error", err
-	}
-
-	tx, err := handler.DB.Begin()
-	if err != nil {
-		return "Internal server error", err
-	}
-	defer tx.Rollback()
-
-	tx.Exec("UPDATE users SET realName=? WHERE id=?", realName, userId)
+	tx.Exec("UPDATE users SET name=? WHERE id=?", name, userId)
 	if err != nil {
 		return "Internal server error", err
 	}

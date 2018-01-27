@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 
@@ -18,8 +19,8 @@ import (
 )
 
 type config struct {
-	CaptchaSecret string `json:"captchaSecret"`
-	StoreUrl      string `json:"storeUrl"`
+	Ssos     []rebbleHandlers.Sso `json":ssos"`
+	StoreUrl string               `json:"storeUrl"`
 }
 
 func main() {
@@ -40,7 +41,6 @@ func main() {
 
 	getopt.BoolVarLong(&version, "version", 'V', "Get the current version info")
 	getopt.StringVarLong(&config.StoreUrl, "store-url", 'u', "Set the store URL (defaults to http://docs.rebble.io)")
-	getopt.StringVarLong(&config.CaptchaSecret, "captcha-secret", 'c', "Set the ReCAPTCHA secret key (registration won't work without it)")
 	getopt.Parse()
 	if version {
 		//fmt.Fprintf(os.Stderr, "Version %s\nBuild Host: %s\nBuild Date: %s\nBuild Hash: %s\n", rsapi.Buildversionstring, rsapi.Buildhost, rsapi.Buildstamp, rsapi.Buildgithash)
@@ -50,6 +50,26 @@ func main() {
 
 	rebbleHandlers.StoreUrl = config.StoreUrl
 
+	for i, sso := range config.Ssos {
+		resp, err := http.Get(sso.DiscoverURI)
+		if err != nil {
+			log.Println("Error: Could not get discovery page for SSO " + sso.Name + " (HTTP GET failed). Please check rebblestore-api.json for any mistakes.")
+			log.Println(err)
+		}
+		if resp.StatusCode/100 != 2 {
+			log.Println("Error: Could not get discovery page for SSO " + sso.Name + " (invalid error code). Please check rebblestore-api.json for any mistakes.")
+			log.Println(err)
+		}
+
+		decoder := json.NewDecoder(resp.Body)
+		err = decoder.Decode(&(config.Ssos[i].Discovery))
+		if err != nil {
+			log.Println("Error: Could not get discovery page for SSO " + sso.Name + " (could not decode JSON). Please check rebblestore-api.json for any mistakes.")
+			log.Println(err)
+		}
+		defer resp.Body.Close()
+	}
+
 	database, err := sql.Open("sqlite3", "./RebbleAppStore.db")
 	if err != nil {
 		panic("Could not connect to database" + err.Error())
@@ -58,7 +78,7 @@ func main() {
 	dbHandler := db.Handler{database}
 
 	// construct the context that will be injected in to handlers
-	context := &rebbleHandlers.HandlerContext{&dbHandler, config.CaptchaSecret}
+	context := &rebbleHandlers.HandlerContext{&dbHandler, config.Ssos}
 
 	r := rebbleHandlers.Handlers(context)
 	loggedRouter := handlers.LoggingHandler(os.Stdout, r)

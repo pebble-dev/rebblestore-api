@@ -100,21 +100,6 @@ func AdminRebuildDBHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.R
 		return http.StatusInternalServerError, err
 	}
 
-	// Placeholder until we implement an actual author/developer system.
-	sqlStmt = `
-			drop table if exists authors;
-			create table authors (
-				id text not null primary key,
-				name text
-			);
-			delete from authors;
-		`
-	_, err = dbHandler.Exec(sqlStmt)
-	if err != nil {
-		return http.StatusInternalServerError, fmt.Errorf("%q: %s", err, sqlStmt)
-	}
-
-	// Placeholder until we implement an actual collections system.
 	sqlStmt = `
 			drop table if exists collections;
 			create table collections (
@@ -134,9 +119,11 @@ func AdminRebuildDBHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.R
 			drop table if exists users;
 			create table users (
 				id integer not null primary key,
-				username text not null,
-				passwordHash text not null,
-				realName text not null,
+				provider text not null,
+				sub text not null,
+				name text not null,
+				type text nont null default 'user',
+				pebbleMirror integer not null,
 				disabled integer not null
 			);
 			delete from users;
@@ -145,8 +132,8 @@ func AdminRebuildDBHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.R
 			create table userSessions (
 				sessionKey text not null primary key,
 				userId integer not null,
-				loginTime integer not null,
-				lastSeenTime integer not null
+				access_token text not null,
+				expires integer not null
 			);
 			delete from userSessions;
 
@@ -177,14 +164,14 @@ func AdminRebuildDBHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.R
 	}
 	defer stmt.Close()
 
-	authors := make(map[string]int)
+	users := make(map[string]int)
 	collections := make(map[string]db.RebbleCollection)
 	lastAuthorId := 0
 	path, errc := walkFiles("PebbleAppStore/")
 	apps := make(map[string]db.RebbleApplication)
 	versions := make(map[string]([]db.RebbleVersion))
 	for item := range path {
-		app, v, err := parseApp(item, &authors, &lastAuthorId, &collections)
+		app, v, err := parseApp(item, &users, &lastAuthorId, &collections)
 		if err != nil {
 			return http.StatusInternalServerError, err
 		}
@@ -235,8 +222,8 @@ func AdminRebuildDBHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.R
 		return http.StatusInternalServerError, err
 	}
 
-	for author, id := range authors {
-		_, err = tx.Exec("INSERT INTO authors(id, name) VALUES(?, ?)", id, author)
+	for user := range users {
+		_, err = tx.Exec("INSERT INTO users(provider, sub, name, type, pebbleMirror, disabled) VALUES('none', '', ?, 'user', 1, 0)", user)
 		if err != nil {
 			return http.StatusInternalServerError, err
 		}

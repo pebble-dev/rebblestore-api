@@ -7,7 +7,7 @@
 /PebbleAppStore
 /PebbleImages
 RebbleAppStore.db
-rebblestore-api.json
+/rebblestore-api.json
 
 server.key
 server.crt
