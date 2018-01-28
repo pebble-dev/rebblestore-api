@@ -19,7 +19,7 @@ git clone https://github.com/pebble-dev/rebblestore-api.git $GOPATH/src/pebble-d
 
 Then, you will need to generate a local (self signed) TLS certificate. The server only supports HTTPS, for obvious security reasons.
 ```shell
-cd $GOPATH/src/pebble-dev
+cd $GOPATH/src/pebble-dev/rebblestore-api
 
 # Generating private key
 openssl genrsa -out server.key 2048
