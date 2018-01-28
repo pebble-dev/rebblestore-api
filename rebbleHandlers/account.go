@@ -1,9 +1,12 @@
 package rebbleHandlers
 
 import (
+	"crypto/rsa"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"log"
+	"math/big"
 	"net/http"
 	"net/url"
 	"strings"
@@ -20,6 +23,7 @@ type Sso struct {
 	RedirectURI  string `json:"redirect_uri"`
 
 	Discovery Discovery
+	certs     certs
 }
 
 // Discovery lists all the API endpoints for a given SSO
@@ -40,7 +44,7 @@ type key struct {
 	E   string `json:"e"`
 }
 
-type certsList struct {
+type certs struct {
 	Keys []key `json:"keys"`
 }
 
@@ -86,6 +90,47 @@ type accountInfo struct {
 	ErrorMessage string `json:"errorMessage"`
 }
 
+func (key *key) getPublicKey() (rsa.PublicKey, error) {
+	// Pad the base64 data if necessary
+	if len(key.N)%4 != 0 {
+		key.N = key.N + strings.Repeat("=", 4-(len(key.N)%4))
+	}
+	if len(key.E)%4 != 0 {
+		key.E = key.E + strings.Repeat("=", 4-(len(key.E)%4))
+	}
+
+	nb := make([]byte, base64.URLEncoding.DecodedLen(len([]byte(key.N))))
+	eb := make([]byte, base64.URLEncoding.DecodedLen(len([]byte(key.E))))
+	n := big.NewInt(0)
+	e := 0
+	ln, err := base64.URLEncoding.Decode(nb, []byte(key.N))
+	if err != nil {
+		return rsa.PublicKey{}, err
+	}
+	le, err := base64.URLEncoding.Decode(eb, []byte(key.E))
+	if err != nil {
+		return rsa.PublicKey{}, err
+	}
+
+	i := 0
+	for i < ln {
+		z := big.NewInt(int64(nb[i]))
+		z.Lsh(z, 8*uint(ln-i-1))
+		n.Add(n, z)
+		i++
+	}
+	i = 0
+	for i < le {
+		e += int(uint64(eb[i]) << (8 * uint64(le-i-1)))
+		i++
+	}
+
+	return rsa.PublicKey{
+		N: n,
+		E: e,
+	}, nil
+}
+
 func accountLoginFail(message string, err error, w *http.ResponseWriter) error {
 	status := accountLoginStatus{
 		Success:      false,
@@ -106,14 +151,10 @@ func accountLoginFail(message string, err error, w *http.ResponseWriter) error {
 	return nil
 }
 
-var certs = certsList{
-	Keys: []key{},
-}
-
-func findKey(kid string) (key, error) {
+func findKey(sso Sso, kid string) (key, error) {
 	foundKey := false
 	var key key
-	for _, k := range certs.Keys {
+	for _, k := range sso.certs.Keys {
 		if k.Kid == kid {
 			foundKey = true
 			key = k
@@ -128,8 +169,8 @@ func findKey(kid string) (key, error) {
 	return key, errors.New("Key not found")
 }
 
-func parseJwtToken(discovery Discovery, encryptedToken string) (jwt.MapClaims, error) {
-	resp, err := http.Get(discovery.JwksURI)
+func parseJwtToken(sso Sso, encryptedToken string) (jwt.MapClaims, error) {
+	resp, err := http.Get(sso.Discovery.JwksURI)
 	if err != nil {
 		return nil, err
 	}
@@ -138,25 +179,38 @@ func parseJwtToken(discovery Discovery, encryptedToken string) (jwt.MapClaims, e
 	}
 
 	token, err := jwt.Parse(encryptedToken, func(token *jwt.Token) (interface{}, error) {
-		key, err := findKey(token.Header["kid"].(string))
+		key, err := findKey(sso, token.Header["kid"].(string))
 
 		// We didn't found a suitable decryption key, but it might just be because they have been updated (should happen about once a day)
 		if err != nil {
 			decoder := json.NewDecoder(resp.Body)
-			err = decoder.Decode(&certs)
+			err = decoder.Decode(&sso.certs)
 			if err != nil {
 				return nil, err
 			}
 			defer resp.Body.Close()
 
-			key, err = findKey(token.Header["kid"].(string))
+			key, err = findKey(sso, token.Header["kid"].(string))
 			if err != nil {
 				return nil, errors.New("Could not find suitable decryption key for JWT token")
 			}
 		}
 
-		return []byte(key.E), nil
+		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
+			return nil, errors.New("Expected RSA signing method for JWT token")
+		}
+
+		pub, err := key.getPublicKey()
+		if err != nil {
+			return nil, err
+		}
+
+		return &pub, nil
 	})
+
+	if err != nil {
+		return nil, err
+	}
 
 	return token.Claims.(jwt.MapClaims), nil
 }
@@ -208,7 +262,7 @@ func AccountLoginHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Req
 		return http.StatusInternalServerError, accountLoginFail("Internal server error: Could not exchange tokens", errors.New("Could not exchange tokens: "+tokensStatus.Error+" ("+tokensStatus.ErrorDescription+")"), &w)
 	}
 
-	claims, err := parseJwtToken(sso.Discovery, tokensStatus.IdToken)
+	claims, err := parseJwtToken(sso, tokensStatus.IdToken)
 	if err != nil {
 		return http.StatusInternalServerError, accountLoginFail("Internal server error: Could not decode token information", err, &w)
 	}
