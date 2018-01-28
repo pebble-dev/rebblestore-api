@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 
 	"github.com/dgrijalva/jwt-go"
 )
@@ -82,8 +81,9 @@ type auth struct {
 }
 
 type accountInfo struct {
-	LoggedIn bool   `json:"loggedIn"`
-	Name     string `json:"name"`
+	LoggedIn     bool   `json:"loggedIn"`
+	Name         string `json:"name"`
+	ErrorMessage string `json:"errorMessage"`
 }
 
 func accountLoginFail(message string, err error, w *http.ResponseWriter) error {
@@ -218,7 +218,7 @@ func AccountLoginHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Req
 		name = n.(string)
 	}
 
-	sessionKey, userErr, err := ctx.Database.AccountLoginOrRegister(sso.Name, claims["sub"].(string), name, tokensStatus.AccessToken, int64(tokensStatus.ExpiresIn)+time.Now().Unix(), r.RemoteAddr)
+	sessionKey, userErr, err := ctx.Database.AccountLoginOrRegister(sso.Name, claims["sub"].(string), name, tokensStatus.AccessToken, int64(claims["exp"].(float64)), r.RemoteAddr)
 	if err != nil {
 		return http.StatusBadRequest, accountLoginFail(userErr, err, &w)
 	}
@@ -250,14 +250,37 @@ func AccountInfoHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Requ
 	}
 	defer r.Body.Close()
 
+	loggedIn, errorMessage, err := ctx.Database.SessionInformation(auth.SessionKey)
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+
+	if !loggedIn {
+		info := accountInfo{
+			LoggedIn:     false,
+			Name:         "",
+			ErrorMessage: errorMessage,
+		}
+		data, err := json.MarshalIndent(info, "", "\t")
+		if err != nil {
+			return http.StatusInternalServerError, err
+		}
+
+		// Send the JSON object back to the user
+		w.Header().Add("content-type", "application/json")
+		w.Write(data)
+		return http.StatusOK, nil
+	}
+
 	loggedIn, name, err := ctx.Database.AccountInformation(auth.SessionKey)
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
 
 	info := accountInfo{
-		LoggedIn: loggedIn,
-		Name:     name,
+		LoggedIn:     loggedIn,
+		Name:         name,
+		ErrorMessage: "",
 	}
 	data, err := json.MarshalIndent(info, "", "\t")
 	if err != nil {
@@ -274,14 +297,35 @@ func AccountInfoHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Requ
 func AccountUpdateNameHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Request) (int, error) {
 	decoder := json.NewDecoder(r.Body)
 
-	var info updateAccount
-	err := decoder.Decode(&info)
+	var auth updateAccount
+	err := decoder.Decode(&auth)
 	if err != nil {
 		return http.StatusBadRequest, err
 	}
 	defer r.Body.Close()
 
-	errorMessage, err := ctx.Database.UpdateName(info.SessionKey, info.Name)
+	loggedIn, errorMessage, err := ctx.Database.SessionInformation(auth.SessionKey)
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+
+	if !loggedIn {
+		info := updateAccountStatus{
+			Success:      false,
+			ErrorMessage: errorMessage,
+		}
+		data, err := json.MarshalIndent(info, "", "\t")
+		if err != nil {
+			return http.StatusInternalServerError, err
+		}
+
+		// Send the JSON object back to the user
+		w.Header().Add("content-type", "application/json")
+		w.Write(data)
+		return http.StatusOK, nil
+	}
+
+	errorMessage, err = ctx.Database.UpdateName(auth.SessionKey, auth.Name)
 
 	status := updateAccountStatus{
 		Success:      err == nil,

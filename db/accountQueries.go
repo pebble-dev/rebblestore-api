@@ -36,7 +36,7 @@ func createSession(tx *sql.Tx, userId int, accessToken string, expires int64) (s
 	}
 
 	if count >= 5 {
-		_, err = tx.Exec("DELETE FROM userSessions WHERE sessionKey=(SELECT sessionKey FROM userSessions WHERE userId=? ORDER BY lastSeenTime ASC LIMIT 1)", userId)
+		_, err = tx.Exec("DELETE FROM userSessions WHERE sessionKey=(SELECT sessionKey FROM userSessions WHERE userId=? ORDER BY expires ASC LIMIT 1)", userId)
 		if err != nil {
 			return "", err
 		}
@@ -149,6 +149,46 @@ func (handler Handler) AccountInformation(sessionKey string) (bool, string, erro
 	}
 
 	return true, name, nil
+}
+
+// SessionInformation returns (loggedIn bool, errMessage string, err error) about the current user session
+func (handler Handler) SessionInformation(sessionKey string) (bool, string, error) {
+	userId, err := handler.getAccountId(sessionKey)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return false, "Invalid session", nil
+		}
+
+		return false, "Internal server error", err
+	}
+
+	var accessToken string
+	var expires int64
+	var provider string
+	rows, err := handler.DB.Query("SELECT userSessions.access_token, userSessions.expires, users.provider FROM userSessions JOIN users ON users.id = userSessions.userId WHERE id=?", userId)
+	if err != nil {
+		return false, "Internal server error", err
+	}
+	sessionFound := false
+	sessionExpired := false
+	for rows.Next() {
+		sessionFound = true
+		err = rows.Scan(&accessToken, &expires, &provider)
+		if err != nil {
+			return false, "Internal server error", err
+		}
+
+		if time.Now().Unix() > expires {
+			sessionExpired = true
+			continue
+		}
+	}
+
+	if !sessionFound || sessionExpired {
+		return false, "Session expired", nil
+	}
+
+	return true, "", nil
 }
 
 // UpdateName updates a user's name and returns a human-readable error as well as an actual error

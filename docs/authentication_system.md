@@ -59,10 +59,12 @@ Response:
 ```JSON
 {
     "loggedIn": boolean,
-    "name": "<name>"
+    "name": "<name>",
+    "errorMessage": "<Error message>"
 }
 ```
-If the user is not logged in (the session key is invalid or the associated access token has been invalidated), name will be blank.
+If the user is not logged in (the session key is invalid or the associated access token has been invalidated), name will be blank and an error message will be provided.  
+Otherwise "errorMessage" will be blank.
 
 ### `/user/update/name`
 
