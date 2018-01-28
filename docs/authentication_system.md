@@ -23,6 +23,26 @@ You should fill your client ID and secret keys in the `rebblestore-api.json` fil
 API
 ---
 
+### `/user/client_ids`
+
+Returns the list of SSO client IDs for the frontend to use
+
+Query: Simple `GET` request
+
+Response:
+```JSON
+{
+    "ssos": [
+        {
+            "name": "google",
+            "client_id": "<client id>",
+            "discover_uri": "<discover uri>"
+        },
+        ...
+    ]
+}
+```
+
 ### `/user/login`
 
 Create a user session tied to the provided authentication code (once the access token expires, so does the session).

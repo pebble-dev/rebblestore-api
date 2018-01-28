@@ -26,6 +26,7 @@ func Handlers(context *HandlerContext) *mux.Router {
 	r.Handle("/dev/apps/get_collection/id/{id}", routeHandler{context, CollectionHandler}).Methods("GET")
 	r.Handle("/dev/apps/search/{query}", routeHandler{context, SearchHandler}).Methods("GET")
 	r.Handle("/dev/author/id/{id}", routeHandler{context, AuthorHandler}).Methods("GET")
+	r.Handle("/user/client_ids", routeHandler{context, ClientIdsHandler}).Methods("GET")
 	r.Handle("/user/login", routeHandler{context, AccountLoginHandler}).Methods("POST")
 	r.Handle("/user/info", routeHandler{context, AccountInfoHandler}).Methods("POST")
 	r.Handle("/user/update/name", routeHandler{context, AccountUpdateNameHandler}).Methods("POST")
