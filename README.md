@@ -17,6 +17,14 @@ mkdir -p $GOPATH/src/pebble-dev
 git clone https://github.com/pebble-dev/rebblestore-api.git $GOPATH/src/pebble-dev/rebblestore-api
 ```
 
+### TLS
+
+#### Disable TLS
+
+If you want to disable TLS and serve unencrypted HTTP instead, set `HTTPS` to `false` in `rebblestore-api.json`
+
+#### Create certificats
+
 Then, you will need to generate a local (self signed) TLS certificate. The server only supports HTTPS, for obvious security reasons.
 ```shell
 cd $GOPATH/src/pebble-dev/rebblestore-api

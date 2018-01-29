@@ -20,10 +20,12 @@ import (
 type config struct {
 	StoreUrl string `json:"storeUrl"`
 	AuthUrl  string `json:"authUrl"`
+	HTTPS    bool   `json:"https"`
 }
 
 func main() {
 	config := config{
+		HTTPS:    true,
 		StoreUrl: "http://localhost:8081",
 		AuthUrl:  "https://localhost:8082",
 	}
@@ -41,7 +43,8 @@ func main() {
 
 	getopt.BoolVarLong(&version, "version", 'V', "Get the current version info")
 	getopt.StringVarLong(&config.StoreUrl, "store-url", 's', "Set the store URL (defaults to http://localhost:8081)")
-	getopt.StringVarLong(&config.StoreUrl, "auth-url", 'a', "Set the auth URL (defaults to https://localhost:8082)")
+	getopt.StringVarLong(&config.AuthUrl, "auth-url", 'a', "Set the auth URL (defaults to https://localhost:8082)")
+	getopt.BoolVarLong(&config.HTTPS, "https", 'h', "Set whether or not to use HTTPS (defaults to true)")
 	getopt.Parse()
 	if version {
 		//fmt.Fprintf(os.Stderr, "Version %s\nBuild Host: %s\nBuild Date: %s\nBuild Hash: %s\n", rsapi.Buildversionstring, rsapi.Buildhost, rsapi.Buildstamp, rsapi.Buildgithash)
@@ -64,7 +67,11 @@ func main() {
 	r := rebbleHandlers.Handlers(context)
 	loggedRouter := handlers.LoggingHandler(os.Stdout, r)
 	http.Handle("/", r)
-	err = http.ListenAndServeTLS(":8080", "server.crt", "server.key", loggedRouter)
+	if config.HTTPS {
+		err = http.ListenAndServeTLS(":8080", "server.crt", "server.key", loggedRouter)
+	} else {
+		err = http.ListenAndServe(":8080", loggedRouter)
+	}
 	if err != nil {
 		panic("Could not listen and serve TLS: " + err.Error())
 	}
