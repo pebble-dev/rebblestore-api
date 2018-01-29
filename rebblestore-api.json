@@ -1,26 +1,4 @@
 {
     "storeUrl": "http://localhost:8081",
-    "ssos": [
-        {
-            "name": "google",
-            "client_id": "<client ID>",
-            "client_secret": "<client secret>",
-            "discover_uri": "https://accounts.google.com/.well-known/openid-configuration",
-            "redirect_uri": "http://localhost:8081/user/login"
-        },
-        {
-            "name": "yahoo",
-            "client_id": "<client ID>",
-            "client_secret": "<client secret>",
-            "discover_uri": "https://login.yahoo.com/.well-known/openid-configuration",
-            "redirect_uri": "<redirect URI>"
-        },
-        {
-            "name": "auth0",
-            "client_id": "<client ID>",
-            "client_secret": "<client secret>",
-            "discover_uri": "https://rebbletest-localhost.auth0.com/.well-known/openid-configuration",
-            "redirect_uri": "http://localhost:8081/user/login"
-        }
-    ]
+    "authUrl": "https://localhost:8082"
 }

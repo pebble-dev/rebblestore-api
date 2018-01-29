@@ -38,6 +38,14 @@ When accessing the website for the first time, you will need to add a security e
 2. Run either `make` to build everything, or `go build -v .` to just build the go executable;
 3. You can run the api with `./rebblestore-api`, or run the tests with `./rebblestore-api-tests`.
 
+### Auth service
+
+You need the Rebble Authentication service to be able to create and login to an account.
+
+Head over to [rebble-auth](https://github.com/pebble-dev/rebble-auth) and follow the README instructions.
+
+Make sure your `authUrl` key in `rebblestore-api.json` corresponds to the URL of the auth service.
+
 ### Database
 
 Instructions to setup the database:

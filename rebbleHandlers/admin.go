@@ -115,43 +115,6 @@ func AdminRebuildDBHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.R
 		return http.StatusInternalServerError, fmt.Errorf("%q: %s", err, sqlStmt)
 	}
 
-	sqlStmt = `
-			drop table if exists users;
-			create table users (
-				id integer not null primary key,
-				provider text not null,
-				sub text not null,
-				name text not null,
-				type text nont null default 'user',
-				pebbleMirror integer not null,
-				disabled integer not null
-			);
-			delete from users;
-
-			drop table if exists userSessions;
-			create table userSessions (
-				sessionKey text not null primary key,
-				userId integer not null,
-				access_token text not null,
-				expires integer not null
-			);
-			delete from userSessions;
-
-			drop table if exists userLogins;
-			create table userLogins (
-				id integer not null primary key,
-				userId integer not null,
-				remoteIp text not null,
-				time integer not null,
-				success integer not null
-			);
-			delete from users;
-		`
-	_, err = dbHandler.Exec(sqlStmt)
-	if err != nil {
-		return http.StatusInternalServerError, fmt.Errorf("%q: %s", err, sqlStmt)
-	}
-
 	tx, err := dbHandler.Begin()
 	if err != nil {
 		return http.StatusInternalServerError, err
@@ -164,14 +127,12 @@ func AdminRebuildDBHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.R
 	}
 	defer stmt.Close()
 
-	users := make(map[string]int)
 	collections := make(map[string]db.RebbleCollection)
-	lastAuthorId := 0
 	path, errc := walkFiles("PebbleAppStore/")
 	apps := make(map[string]db.RebbleApplication)
 	versions := make(map[string]([]db.RebbleVersion))
 	for item := range path {
-		app, v, err := parseApp(item, &users, &lastAuthorId, &collections)
+		app, v, err := parseApp(item, &collections)
 		if err != nil {
 			return http.StatusInternalServerError, err
 		}
@@ -220,13 +181,6 @@ func AdminRebuildDBHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.R
 	}
 	if err := <-errc; err != nil {
 		return http.StatusInternalServerError, err
-	}
-
-	for user := range users {
-		_, err = tx.Exec("INSERT INTO users(provider, sub, name, type, pebbleMirror, disabled) VALUES('none', '', ?, 'user', 1, 0)", user)
-		if err != nil {
-			return http.StatusInternalServerError, err
-		}
 	}
 
 	for id, collection := range collections {
