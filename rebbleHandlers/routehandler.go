@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 
+	"pebble-dev/rebblestore-api/auth"
 	"pebble-dev/rebblestore-api/db"
 )
 
@@ -11,6 +12,7 @@ import (
 // we can also add things like authorization level, user information, templates, etc.
 type HandlerContext struct {
 	Database *db.Handler
+	Auth     auth.AuthService
 }
 
 // routeHandler is a struct that implements http.Handler, allowing us to inject a custom context

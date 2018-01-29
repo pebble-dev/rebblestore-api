@@ -43,7 +43,7 @@ type RebbleAppInfo struct {
 
 // RebbleAuthor describes the autor of a Rebble app (ID and name)
 type RebbleAuthor struct {
-	Id   int    `json:"id"`
+	Id   string `json:"id"`
 	Name string `json:"name"`
 }
 

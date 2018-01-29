@@ -73,7 +73,7 @@ func AdminRebuildDBHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.R
 			create table apps (
 				id text not null primary key,
 				name text,
-				author_id integer,
+				author_id text,
 				tag_ids blob,
 				description text,
 				thumbs_up integer,

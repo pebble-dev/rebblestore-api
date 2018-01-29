@@ -39,6 +39,7 @@ type PebbleApplication struct {
 	CategoryName       string                   `json:"category_name"`
 	CategoryColor      string                   `json:"category_color"`
 	Description        string                   `json:"description"`
+	DeveloperId        string                   `json:"developer_id"`
 	Published          db.JSONTime              `json:"published_date"`
 	Release            PebbleApplicationRelease `json:"latest_release"`
 	Website            string                   `json:"website"`
@@ -191,7 +192,7 @@ func parseApp(path string, collections *map[string]db.RebbleCollection) (*db.Reb
 	app.ThumbsUp = data.Apps[0].Hearts
 	app.Type = data.Apps[0].Type
 	app.SupportedPlatforms = supportedPlatforms
-	app.Author = db.RebbleAuthor{-1, data.Apps[0].Author}
+	app.Author = db.RebbleAuthor{data.Apps[0].DeveloperId, data.Apps[0].Author}
 	app.AppInfo.PbwUrl = data.Apps[0].Release.PbwUrl
 	app.AppInfo.RebbleReady = false
 	app.AppInfo.Updated = data.Apps[0].Release.Published
@@ -317,7 +318,7 @@ func AppsHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Request) (i
 
 // AppHandler returns a particular application from the backend DB as JSON
 func AppHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Request) (int, error) {
-	app, err := ctx.Database.GetApp(mux.Vars(r)["id"])
+	app, err := ctx.Database.GetApp(ctx.Auth, mux.Vars(r)["id"])
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}

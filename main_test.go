@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	"pebble-dev/rebblestore-api/auth"
 	"pebble-dev/rebblestore-api/db"
 	"pebble-dev/rebblestore-api/rebbleHandlers"
 
@@ -25,7 +26,7 @@ func TestMain(m *testing.M) {
 	}
 
 	dbHandler := db.Handler{database}
-	context := &rebbleHandlers.HandlerContext{&dbHandler}
+	context := &rebbleHandlers.HandlerContext{&dbHandler, auth.AuthService{"https://localhost:8082"}}
 
 	var r = rebbleHandlers.Handlers(context)
 	r.KeepContext = true

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 
+	"pebble-dev/rebblestore-api/auth"
 	"pebble-dev/rebblestore-api/common"
 	"pebble-dev/rebblestore-api/db"
 	"pebble-dev/rebblestore-api/rebbleHandlers"
@@ -62,7 +63,7 @@ func main() {
 	dbHandler := db.Handler{database}
 
 	// construct the context that will be injected in to handlers
-	context := &rebbleHandlers.HandlerContext{&dbHandler}
+	context := &rebbleHandlers.HandlerContext{&dbHandler, auth.AuthService{config.AuthUrl}}
 
 	r := rebbleHandlers.Handlers(context)
 	loggedRouter := handlers.LoggingHandler(os.Stdout, r)
