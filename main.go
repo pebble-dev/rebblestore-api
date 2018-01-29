@@ -22,6 +22,7 @@ type config struct {
 	StoreUrl string `json:"storeUrl"`
 	AuthUrl  string `json:"authUrl"`
 	HTTPS    bool   `json:"https"`
+	Database string `json:"database"`
 }
 
 func main() {
@@ -29,6 +30,7 @@ func main() {
 		HTTPS:    true,
 		StoreUrl: "http://localhost:8081",
 		AuthUrl:  "https://localhost:8082",
+		Database: "./RebbleAppStore.db",
 	}
 
 	file, err := ioutil.ReadFile("./rebblestore-api.json")
@@ -46,6 +48,7 @@ func main() {
 	getopt.StringVarLong(&config.StoreUrl, "store-url", 's', "Set the store URL (defaults to http://localhost:8081)")
 	getopt.StringVarLong(&config.AuthUrl, "auth-url", 'a', "Set the auth URL (defaults to https://localhost:8082)")
 	getopt.BoolVarLong(&config.HTTPS, "https", 'h', "Set whether or not to use HTTPS (defaults to true)")
+	getopt.StringVarLong(&config.Database, "database", 'd', "Specify a specific SQLite database path (defaults to ./RebbleAppStore.db)")
 	getopt.Parse()
 	if version {
 		//fmt.Fprintf(os.Stderr, "Version %s\nBuild Host: %s\nBuild Date: %s\nBuild Hash: %s\n", rsapi.Buildversionstring, rsapi.Buildhost, rsapi.Buildstamp, rsapi.Buildgithash)
@@ -55,7 +58,7 @@ func main() {
 
 	rebbleHandlers.StoreUrl = config.StoreUrl
 
-	database, err := sql.Open("sqlite3", "./RebbleAppStore.db")
+	database, err := sql.Open("sqlite3", config.Database)
 	if err != nil {
 		panic("Could not connect to database" + err.Error())
 	}

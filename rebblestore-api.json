@@ -1,5 +1,6 @@
 {
     "https": true,
     "storeUrl": "http://localhost:8081",
-    "authUrl": "http://localhost:8082"
+    "authUrl": "http://localhost:8082",
+    "database": "./RebbleAppStore.db"
 }
