@@ -1,5 +1,5 @@
 {
-    "HTTPS": true,
+    "https": true,
     "storeUrl": "http://localhost:8081",
     "authUrl": "https://localhost:8082"
 }
