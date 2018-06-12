@@ -39,6 +39,7 @@ type PebbleApplication struct {
 	CategoryName       string                   `json:"category_name"`
 	CategoryColor      string                   `json:"category_color"`
 	Description        string                   `json:"description"`
+	DeveloperId        string                   `json:"developer_id"`
 	Published          db.JSONTime              `json:"published_date"`
 	Release            PebbleApplicationRelease `json:"latest_release"`
 	Website            string                   `json:"website"`
@@ -129,7 +130,7 @@ func (pi *PebbleIcons) UnmarshalJSON(b []byte) error {
 	return json.Unmarshal(b, (*(map[string]string))(pi))
 }
 
-func parseApp(path string, authors *map[string]int, lastAuthorId *int, collections *map[string]db.RebbleCollection) (*db.RebbleApplication, *[]db.RebbleVersion, error) {
+func parseApp(path string, collections *map[string]db.RebbleCollection) (*db.RebbleApplication, *[]db.RebbleVersion, error) {
 	f, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, nil, err
@@ -145,12 +146,6 @@ func parseApp(path string, authors *map[string]int, lastAuthorId *int, collectio
 		//log.Println(data)
 		//log.Println(data.Data)
 		panic("Data is not the size of 1")
-	}
-
-	// Create author if it doesn't exist
-	if _, ok := (*authors)[data.Apps[0].Author]; !ok {
-		(*authors)[data.Apps[0].Author] = *lastAuthorId + 1
-		*lastAuthorId = *lastAuthorId + 1
 	}
 
 	// Create collection if it doesn't exist
@@ -197,7 +192,7 @@ func parseApp(path string, authors *map[string]int, lastAuthorId *int, collectio
 	app.ThumbsUp = data.Apps[0].Hearts
 	app.Type = data.Apps[0].Type
 	app.SupportedPlatforms = supportedPlatforms
-	app.Author = db.RebbleAuthor{(*authors)[data.Apps[0].Author], data.Apps[0].Author}
+	app.Author = db.RebbleAuthor{data.Apps[0].DeveloperId, data.Apps[0].Author}
 	app.AppInfo.PbwUrl = data.Apps[0].Release.PbwUrl
 	app.AppInfo.RebbleReady = false
 	app.AppInfo.Updated = data.Apps[0].Release.Published
@@ -323,7 +318,7 @@ func AppsHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Request) (i
 
 // AppHandler returns a particular application from the backend DB as JSON
 func AppHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Request) (int, error) {
-	app, err := ctx.Database.GetApp(mux.Vars(r)["id"])
+	app, err := ctx.Database.GetApp(ctx.Auth, mux.Vars(r)["id"])
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}

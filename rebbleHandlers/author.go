@@ -2,27 +2,22 @@ package rebbleHandlers
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 	"pebble-dev/rebblestore-api/db"
-	"strconv"
 
 	"github.com/gorilla/mux"
 )
 
 type rebbleAuthor struct {
-	Id    int             `json:"id"`
+	Id    string          `json:"id"`
 	Name  string          `json:"name"`
 	Cards []db.RebbleCard `json:"cards"`
 }
 
 func AuthorHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Request) (int, error) {
-	id, err := strconv.Atoi(mux.Vars(r)["id"])
-	if err != nil {
-		return http.StatusBadRequest, errors.New("Non-numeric ID")
-	}
+	id := mux.Vars(r)["id"]
 
-	author, err := ctx.Database.GetAuthor(id)
+	author, err := ctx.Database.GetAuthor(ctx.Auth, id)
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}

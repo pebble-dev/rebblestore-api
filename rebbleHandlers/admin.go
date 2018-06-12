@@ -73,7 +73,7 @@ func AdminRebuildDBHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.R
 			create table apps (
 				id text not null primary key,
 				name text,
-				author_id integer,
+				author_id text,
 				tag_ids blob,
 				description text,
 				thumbs_up integer,
@@ -100,30 +100,13 @@ func AdminRebuildDBHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.R
 		return http.StatusInternalServerError, err
 	}
 
-	// Placeholder until we implement an actual author/developer system.
-	sqlStmt = `
-			drop table if exists authors;
-			create table authors (
-				id text not null primary key,
-				name text
-			);
-			delete from authors;
-		`
-	_, err = dbHandler.Exec(sqlStmt)
-	if err != nil {
-		return http.StatusInternalServerError, fmt.Errorf("%q: %s", err, sqlStmt)
-	}
-
-	// Placeholder until we implement an actual collections system.
 	sqlStmt = `
 			drop table if exists collections;
 			create table collections (
 				id text not null primary key,
 				name text,
 				color text,
-				apps blob,
-				cache_apps_most_popular blob,
-				cache_time integer
+				apps blob
 			);
 			delete from collections;
 		`
@@ -144,14 +127,12 @@ func AdminRebuildDBHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.R
 	}
 	defer stmt.Close()
 
-	authors := make(map[string]int)
 	collections := make(map[string]db.RebbleCollection)
-	lastAuthorId := 0
 	path, errc := walkFiles("PebbleAppStore/")
 	apps := make(map[string]db.RebbleApplication)
 	versions := make(map[string]([]db.RebbleVersion))
 	for item := range path {
-		app, v, err := parseApp(item, &authors, &lastAuthorId, &collections)
+		app, v, err := parseApp(item, &collections)
 		if err != nil {
 			return http.StatusInternalServerError, err
 		}
@@ -200,13 +181,6 @@ func AdminRebuildDBHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.R
 	}
 	if err := <-errc; err != nil {
 		return http.StatusInternalServerError, err
-	}
-
-	for author, id := range authors {
-		_, err = tx.Exec("INSERT INTO authors(id, name) VALUES(?, ?)", id, author)
-		if err != nil {
-			return http.StatusInternalServerError, err
-		}
 	}
 
 	for id, collection := range collections {

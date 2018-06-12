@@ -4,9 +4,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 	"time"
+
+	"pebble-dev/rebblestore-api/auth"
 )
 
 // Handler contains reference to the database client
@@ -156,7 +159,7 @@ func (handler Handler) GetAllApps(sortby string, ascending bool, offset int, lim
 	rows, err := handler.Query(`
 		SELECT apps.name, authors.name, apps.icon_url, apps.id, apps.thumbs_up, apps.published_date
 		FROM apps
-		JOIN authors ON apps.author_id = authors.id
+		JOIN users ON apps.author_id = users.id
 		ORDER BY `+orderCol+" "+order+`
 		LIMIT ?
 		OFFSET ?
@@ -177,8 +180,8 @@ func (handler Handler) GetAllApps(sortby string, ascending bool, offset int, lim
 }
 
 // GetApp returns a specific app
-func (handler Handler) GetApp(id string) (RebbleApplication, error) {
-	row := handler.QueryRow("SELECT apps.id, apps.name, apps.author_id, authors.name, apps.tag_ids, apps.description, apps.thumbs_up, apps.type, apps.supported_platforms, apps.published_date, apps.pbw_url, apps.rebble_ready, apps.updated, apps.version, apps.support_url, apps.author_url, apps.source_url, apps.screenshots, apps.banner_url, apps.icon_url, apps.doomsday_backup FROM apps JOIN authors ON apps.author_id = authors.id WHERE apps.id=?", id)
+func (handler Handler) GetApp(authService auth.AuthService, id string) (RebbleApplication, error) {
+	row := handler.QueryRow("SELECT apps.id, apps.name, apps.author_id, apps.tag_ids, apps.description, apps.thumbs_up, apps.type, apps.supported_platforms, apps.published_date, apps.pbw_url, apps.rebble_ready, apps.updated, apps.version, apps.support_url, apps.author_url, apps.source_url, apps.screenshots, apps.banner_url, apps.icon_url, apps.doomsday_backup FROM apps WHERE apps.id=?", id)
 
 	app := RebbleApplication{}
 	var supportedPlatforms_b []byte
@@ -187,12 +190,22 @@ func (handler Handler) GetApp(id string) (RebbleApplication, error) {
 	var tagIds []string
 	var screenshots_b []byte
 	var screenshots *([]RebbleScreenshotsPlatform)
-	err := row.Scan(&app.Id, &app.Name, &app.Author.Id, &app.Author.Name, &tagIds_b, &app.Description, &app.ThumbsUp, &app.Type, &supportedPlatforms_b, &t_published, &app.AppInfo.PbwUrl, &app.AppInfo.RebbleReady, &t_updated, &app.AppInfo.Version, &app.AppInfo.SupportUrl, &app.AppInfo.AuthorUrl, &app.AppInfo.SourceUrl, &screenshots_b, &app.Assets.Banner, &app.Assets.Icon, &app.DoomsdayBackup)
+	err := row.Scan(&app.Id, &app.Name, &app.Author.Id, &tagIds_b, &app.Description, &app.ThumbsUp, &app.Type, &supportedPlatforms_b, &t_published, &app.AppInfo.PbwUrl, &app.AppInfo.RebbleReady, &t_updated, &app.AppInfo.Version, &app.AppInfo.SupportUrl, &app.AppInfo.AuthorUrl, &app.AppInfo.SourceUrl, &screenshots_b, &app.Assets.Banner, &app.Assets.Icon, &app.DoomsdayBackup)
 	if err == sql.ErrNoRows {
 		return RebbleApplication{}, errors.New("No application with this ID")
 	} else if err != nil {
 		return RebbleApplication{}, err
 	}
+
+	// Get the app author
+	name, errorMessage, err := authService.GetName(app.Author.Id)
+	if err != nil {
+		return RebbleApplication{}, err
+	}
+	if name == "" {
+		return RebbleApplication{}, fmt.Errorf("Could not get author %v: %v", app.Author.Id, errorMessage)
+	}
+	app.Author.Name = name
 
 	json.Unmarshal(supportedPlatforms_b, &app.SupportedPlatforms)
 	app.Published.Time = time.Unix(0, t_published)
@@ -273,29 +286,25 @@ func (handler Handler) GetAppVersions(id string) ([]RebbleVersion, error) {
 }
 
 // GetAuthor returns a RebbleAuthor
-func (handler Handler) GetAuthor(id int) (RebbleAuthor, error) {
-	rows, err := handler.Query("SELECT authors.name FROM authors WHERE id=?", id)
+func (handler Handler) GetAuthor(authService auth.AuthService, id string) (RebbleAuthor, error) {
+	name, errorMessage, err := authService.GetName(id)
 	if err != nil {
 		return RebbleAuthor{}, err
 	}
-	exists := rows.Next()
-	if !exists {
-		return RebbleAuthor{}, errors.New("No app with this ID")
+	if name == "" {
+		return RebbleAuthor{}, fmt.Errorf("Could not get name for user %v: %v", id, errorMessage)
 	}
 
 	author := RebbleAuthor{
-		Id: id,
-	}
-	err = rows.Scan(&author.Name)
-	if err != nil {
-		return RebbleAuthor{}, err
+		Id:   id,
+		Name: name,
 	}
 
 	return author, nil
 }
 
 // GetAuthorCards returns cards for all apps from a specific author
-func (handler Handler) GetAuthorCards(id int) (RebbleCards, error) {
+func (handler Handler) GetAuthorCards(id string) (RebbleCards, error) {
 	rows, err := handler.Query(`
 		SELECT id, name, type, screenshots, thumbs_up
 		FROM apps
