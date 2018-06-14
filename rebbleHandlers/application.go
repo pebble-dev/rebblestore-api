@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"time"
 
 	"pebble-dev/rebblestore-api/db"
 
@@ -39,7 +40,7 @@ type PebbleApplication struct {
 	CategoryName       string                   `json:"category_name"`
 	CategoryColor      string                   `json:"category_color"`
 	Description        string                   `json:"description"`
-	Published          db.JSONTime              `json:"published_date"`
+	Published          time.Time                `json:"published_date"`
 	Release            PebbleApplicationRelease `json:"latest_release"`
 	Website            string                   `json:"website"`
 	Source             string                   `json:"source"`
@@ -55,17 +56,17 @@ type PebbleApplication struct {
 
 // PebbleApplicationRelease describes the `release` tag of a pebble JSON
 type PebbleApplicationRelease struct {
-	Id        string      `json:"id"`
-	PbwUrl    string      `json:"pbw_file"`
-	Published db.JSONTime `json:"published_date"`
-	Version   string      `json:"version"`
+	Id        string    `json:"id"`
+	PbwUrl    string    `json:"pbw_file"`
+	Published time.Time `json:"published_date"`
+	Version   string    `json:"version"`
 }
 
 // PebbleVersion describes a version change
 type PebbleVersion struct {
-	Version   string      `json:"version"`
-	Published db.JSONTime `json:"published_date"`
-	Notes     string      `json:"release_notes"`
+	Version   string    `json:"version"`
+	Published time.Time `json:"published_date"`
+	Notes     string    `json:"release_notes"`
 }
 
 // PebbleCompatibility describes the `compatibility` tag of a pebble JSON

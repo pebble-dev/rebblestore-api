@@ -11,7 +11,7 @@ import (
 	"pebble-dev/rebblestore-api/rebbleHandlers"
 
 	"github.com/gorilla/handlers"
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/lib/pq"
 	"github.com/pborman/getopt"
 )
 
@@ -27,7 +27,7 @@ func main() {
 		return
 	}
 
-	database, err := sql.Open("sqlite3", "./RebbleAppStore.db")
+	database, err := sql.Open("postgres", "user=rebblestore dbname=rebblestore")
 	if err != nil {
 		panic("Could not connect to database" + err.Error())
 	}

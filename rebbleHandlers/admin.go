@@ -49,54 +49,38 @@ func walkFiles(root string) (<-chan string, <-chan error) {
 // AdminRebuildDBHandler allows an administrator to rebuild the database from
 // the application directory after hitting a single API end point.
 func AdminRebuildDBHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.Request) (int, error) {
-	//w.WriteHeader(418)
-	//fmt.Fprintf(w, "I'm a teapot!")
-	/*
-		w.Header().Add("content-type", "text/html")
-		path, errc := walkFiles("PebbleAppStore/apps")
-		for item := range path {
-			fmt.Fprintf(w, "File: %s<br />", item)
-		}
-		if err := <-errc; err != nil {
-			log.Fatal(err)
-		}
-		/**/
-
-	//return /*
-	//db.Close()
-
 	dbHandler := ctx.Database
 
-	// tag_ids and screenshot_urls are Marshaled arrays, hence the BLOB type.
 	sqlStmt := `
 			drop table if exists apps;
 			create table apps (
 				id text not null primary key,
 				name text,
 				author_id integer,
-				tag_ids blob,
+				tag_ids text,
 				description text,
 				thumbs_up integer,
 				type text,
-				supported_platforms blob,
-				published_date integer,
+				supported_platforms text,
+				published_date timestamp,
 				pbw_url text,
-				rebble_ready integer,
-				updated integer,
+				rebble_ready boolean,
+				updated timestamp,
 				version text,
 				support_url text,
 				author_url text,
 				source_url text,
-				screenshots blob,
+				screenshots text,
 				banner_url text,
 				icon_url text,
-				doomsday_backup integer,
-				versions blob
+				doomsday_backup boolean,
+				versions text
 			);
 			delete from apps;
 		`
 	_, err := dbHandler.Exec(sqlStmt)
 	if err != nil {
+		log.Printf("SQL error: Could not create database `apps`: %v", err)
 		return http.StatusInternalServerError, err
 	}
 
@@ -104,13 +88,14 @@ func AdminRebuildDBHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.R
 	sqlStmt = `
 			drop table if exists authors;
 			create table authors (
-				id text not null primary key,
+				id integer not null primary key,
 				name text
 			);
 			delete from authors;
 		`
 	_, err = dbHandler.Exec(sqlStmt)
 	if err != nil {
+		log.Printf("SQL error: Could not create database `authors`: %v", err)
 		return http.StatusInternalServerError, fmt.Errorf("%q: %s", err, sqlStmt)
 	}
 
@@ -121,25 +106,28 @@ func AdminRebuildDBHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.R
 				id text not null primary key,
 				name text,
 				color text,
-				apps blob,
-				cache_apps_most_popular blob,
+				apps text,
+				cache_apps_most_popular text,
 				cache_time integer
 			);
 			delete from collections;
 		`
 	_, err = dbHandler.Exec(sqlStmt)
 	if err != nil {
+		log.Printf("SQL error: Could not create database `collections`: %v", err)
 		return http.StatusInternalServerError, fmt.Errorf("%q: %s", err, sqlStmt)
 	}
 
 	tx, err := dbHandler.Begin()
 	if err != nil {
+		log.Printf("SQL error: Could not begin transaction: %v", err)
 		return http.StatusInternalServerError, err
 	}
 	defer tx.Rollback()
 
-	stmt, err := tx.Prepare("INSERT INTO apps(id, name, author_id, tag_ids, description, thumbs_up, type, supported_platforms, published_date, pbw_url, rebble_ready, updated, version, support_url, author_url, source_url, screenshots, banner_url, icon_url, doomsday_backup, versions) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+	stmt, err := tx.Prepare("INSERT INTO apps(id, name, author_id, tag_ids, description, thumbs_up, type, supported_platforms, published_date, pbw_url, rebble_ready, updated, version, support_url, author_url, source_url, screenshots, banner_url, icon_url, doomsday_backup, versions) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)")
 	if err != nil {
+		log.Printf("SQL error: Could not prepare `apps` INSERT: %v", err)
 		return http.StatusInternalServerError, err
 	}
 	defer stmt.Close()
@@ -153,6 +141,7 @@ func AdminRebuildDBHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.R
 	for item := range path {
 		app, v, err := parseApp(item, &authors, &lastAuthorId, &collections)
 		if err != nil {
+			log.Printf("SQL error: Could not parse application from mirror: %v", err)
 			return http.StatusInternalServerError, err
 		}
 
@@ -178,33 +167,40 @@ func AdminRebuildDBHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.R
 		tag_ids_s[0] = app.AppInfo.Tags[0].Id
 		tag_ids, err := json.Marshal(tag_ids_s)
 		if err != nil {
+			log.Println("Could not marshal `tag_ids_s`")
 			return http.StatusInternalServerError, err
 		}
 		screenshots, err := json.Marshal(app.Assets.Screenshots)
 		if err != nil {
+			log.Println("Could not marshal `app.Assets.Screenshots`")
 			return http.StatusInternalServerError, err
 		}
 		supported_platforms, err := json.Marshal(app.SupportedPlatforms)
 		if err != nil {
+			log.Println("Could not marshal `app.SupportedPlatforms`")
 			return http.StatusInternalServerError, err
 		}
 		versions, err := json.Marshal(versions[app.Id])
 		if err != nil {
+			log.Println("Could not marshal `versions[app.Id]`")
 			return http.StatusInternalServerError, err
 		}
 
-		_, err = stmt.Exec(app.Id, app.Name, app.Author.Id, tag_ids, app.Description, app.ThumbsUp, app.Type, supported_platforms, app.Published.UnixNano(), app.AppInfo.PbwUrl, app.AppInfo.RebbleReady, app.AppInfo.Updated.UnixNano(), app.AppInfo.Version, app.AppInfo.SupportUrl, app.AppInfo.AuthorUrl, app.AppInfo.SourceUrl, screenshots, app.Assets.Banner, app.Assets.Icon, app.DoomsdayBackup, versions)
+		_, err = stmt.Exec(app.Id, app.Name, app.Author.Id, tag_ids, app.Description, app.ThumbsUp, app.Type, supported_platforms, app.Published, app.AppInfo.PbwUrl, app.AppInfo.RebbleReady, app.AppInfo.Updated, app.AppInfo.Version, app.AppInfo.SupportUrl, app.AppInfo.AuthorUrl, app.AppInfo.SourceUrl, screenshots, app.Assets.Banner, app.Assets.Icon, app.DoomsdayBackup, versions)
 		if err != nil {
+			log.Printf("SQL error: Could not execute `apps` INSERT: %v", err)
 			return http.StatusInternalServerError, err
 		}
 	}
 	if err := <-errc; err != nil {
+		print("Error while walking mirror files: %v", err)
 		return http.StatusInternalServerError, err
 	}
 
 	for author, id := range authors {
-		_, err = tx.Exec("INSERT INTO authors(id, name) VALUES(?, ?)", id, author)
+		_, err = tx.Exec("INSERT INTO authors(id, name) VALUES($1, $2)", id, author)
 		if err != nil {
+			log.Printf("SQL error: Could not execute `authors` INSERT: %v", err)
 			return http.StatusInternalServerError, err
 		}
 	}
@@ -221,8 +217,9 @@ func AdminRebuildDBHandler(ctx *HandlerContext, w http.ResponseWriter, r *http.R
 
 		collectionApps_b, err := json.Marshal(collectionApps)
 
-		_, err = tx.Exec("INSERT INTO collections(id, name, color, apps) VALUES(?, ?, ?, ?)", id, collection.Name, collection.Color, collectionApps_b)
+		_, err = tx.Exec("INSERT INTO collections(id, name, color, apps) VALUES($1, $2, $3, $4)", id, collection.Name, collection.Color, collectionApps_b)
 		if err != nil {
+			log.Printf("SQL error: Could not execute `collections` INSERT: %v", err)
 			return http.StatusInternalServerError, err
 		}
 	}
@@ -342,7 +339,7 @@ func AdminRebuildImagesHandler(ctx *HandlerContext, w http.ResponseWriter, r *ht
 		if err != nil {
 			return http.StatusInternalServerError, err
 		}
-		_, err = tx.Exec("UPDATE apps SET screenshots=? WHERE id=?", screenshots, id)
+		_, err = tx.Exec("UPDATE apps SET screenshots=$1 WHERE id=$2", screenshots, id)
 		if err != nil {
 			return http.StatusInternalServerError, err
 		}
