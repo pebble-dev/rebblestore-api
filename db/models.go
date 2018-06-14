@@ -1,5 +1,7 @@
 package db
 
+import "time"
+
 // RebbleCard contains succint information about an app, to display on a result page for example
 type RebbleCard struct {
 	Id       string `json:"id"`
@@ -23,7 +25,7 @@ type RebbleApplication struct {
 	ThumbsUp           int           `json:"thumbs_up"`
 	Type               string        `json:"type"`
 	SupportedPlatforms []string      `json:"supported_platforms"`
-	Published          JSONTime      `json:"published_date"`
+	Published          time.Time     `json:"published_date"`
 	AppInfo            RebbleAppInfo `json:"appInfo"`
 	Assets             RebbleAssets  `json:"assets"`
 	DoomsdayBackup     bool          `json:"doomsday_backup"`
@@ -34,7 +36,7 @@ type RebbleAppInfo struct {
 	PbwUrl      string             `json:"pbwUrl"`
 	RebbleReady bool               `json:"rebbleReady"`
 	Tags        []RebbleCollection `json:"tags"`
-	Updated     JSONTime           `json:"updated"`
+	Updated     time.Time          `json:"updated"`
 	Version     string             `json:"version"`
 	SupportUrl  string             `json:"supportUrl"`
 	AuthorUrl   string             `json:"authorUrl"`
@@ -69,7 +71,7 @@ type RebbleScreenshotsPlatform struct {
 
 // RebbleVersion contains information about a specific version of an app
 type RebbleVersion struct {
-	Number      string   `json:"number"`
-	ReleaseDate JSONTime `json:"release_date"`
-	Description string   `json:"description"`
+	Number      string    `json:"number"`
+	ReleaseDate time.Time `json:"release_date"`
+	Description string    `json:"description"`
 }
