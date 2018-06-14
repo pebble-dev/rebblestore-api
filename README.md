@@ -4,7 +4,7 @@ If you want to contribute join us on the [Pebble Dev Discord server](http://disc
 
 ## Requirements
 
-Backend/API layer requires `git`, `go`, `npm`, and `apib2swagger`.
+Backend/API layer requires `git`, `go`, `npm`, `postgresql` and `apib2swagger`.
 
 To make the backend do anything, you also need to download a copy of the Pebble App Store. You can already start downloading it [here](https://drive.google.com/file/d/0B1rumprSXUAhTjB1aU9GUFVPUW8/view) while you setup the development environment.
 
@@ -30,7 +30,8 @@ Instructions to setup the database:
 
 1. If you haven't already, download a copy of the Pebble App Store by using [this tool](https://github.com/azertyfun/PebbleAppStoreCrawler). To ease the load on fitbit's servers, you can download it directly [here](https://drive.google.com/file/d/0B1rumprSXUAhTjB1aU9GUFVPUW8/view);
 2. Extract the PebbleAppStore folder to the project directory: `tar -xzf PebbleAppStore.tar.gz -C $GOPATH/src/pebble-dev/rebblestore-api`;
-3. Start `./rebblestore-api` and access http://localhost:8080/admin/rebuild/db to rebuild the database.
+3. Setup the PostgreSQL database with a `rebblestore` user and a `rebblestore` database (as described on the [Arch Wiki](https://wiki.archlinux.org/index.php/PostgreSQL)), then [enable SSL](https://www.postgresql.org/docs/current/static/ssl-tcp.html) in `postgresql.conf`;
+4. Start `./rebblestore-api` and access http://localhost:8080/admin/rebuild/db to rebuild the database.
 
 ## Contributing
 
