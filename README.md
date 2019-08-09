@@ -1,3 +1,6 @@
+## Repo archived
+Moved to python implementation: https://github.com/pebble-dev/rebble-appstore-api
+
 ## Rebble Store for pebble Backend/API
 The Rebble Store is a Pebble Appstore replacement.
 If you want to contribute join us on the [Pebble Dev Discord server](http://discord.gg/aRUAYFN), then head to `#appstore`.
